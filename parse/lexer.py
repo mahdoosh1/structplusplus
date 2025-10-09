@@ -1,6 +1,6 @@
 import re
-from enum import Enum, StrEnum, auto
-from typing import NamedTuple, Iterator
+from enum import StrEnum, auto
+from typing import NamedTuple
 
 class TokenType(StrEnum):
     IDENT = auto()
