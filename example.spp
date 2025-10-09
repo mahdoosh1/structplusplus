@@ -1,0 +1,55 @@
+#endian little
+#noreserve
+Pixel() {
+    blue: uint8;
+    green: uint8;
+    red: uint8;
+}
+
+File() {
+    file_header: FileHeader;
+    dib_header: DIBHeader;
+    pixels: PixelArray(dib_header.width, dib_header.height, dib_header.bpp);
+}
+
+FileHeader() {
+    magic: 2B;        // 'BM'
+    file_size: uint32;
+    reserved: 4B;
+    pixel_offset: uint32;
+}
+
+DIBHeader() {
+    header_size: uint32;
+    if (header_size != 40) {
+        raise "Invalid DIB header size";
+    }
+    width: uint32;
+    height: uint32;
+    planes: uint16;
+    if (planes != 1) {
+        raise "BMP must have 1 plane";
+    }
+    bpp: uint16;
+    if (bpp != 24) {
+        raise "Only 24-bit supported";
+    }
+    compression: uint32;
+    if (compression != 0) {
+        raise "Only uncompressed supported";
+    }
+    image_size: uint32;
+    x_ppm: uint32;
+    y_ppm: uint32;
+    colors_used: uint32;
+    important_colors: uint32;
+}
+
+PixelRow(width, bpp) {
+    pixels: Pixel[width];
+    padding: uint8[(4 - (width * (bpp / 8)) % 4) % 4];
+}
+
+PixelArray(width, height, bpp) {
+    rows: PixelRow(width, bpp)[height];
+}
