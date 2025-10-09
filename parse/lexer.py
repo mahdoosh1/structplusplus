@@ -146,10 +146,3 @@ def lex(code: str) -> list[Token]:
                 index += 1
                 matched = True
     return tokens
-
-# example
-if __name__ == "__main__":
-    with open("example.spp") as file:
-        example_code = file.read()
-    for token in lex(example_code):
-        print(f"{token[0].value:<20} {token[1]:<20} {str(token[2]):<20}")

@@ -14,6 +14,11 @@ class Expression:
     pos: Pos
 
 @dataclass
+class CallExpression(Expression):
+    callee: Expression
+    args: list[Expression]
+
+@dataclass
 class Identifier(Expression):
     name: str
 
@@ -55,8 +60,8 @@ class RaiseStmt(Statement):
 class DeclareStatement(Statement):
     # can be: ident ":" ident | size [ "[" ( ident | number | size ) "]" ] | [ "=" ( ident | number ) ]
     name: Identifier        # identifier when present (for ident:ident form or named field)
-    type: Union[Identifier,NumberLiteral]   # type name when present (like uint32)
-    array_size: Optional[NumberLiteral]  # expression inside brackets or None
+    type: Expression   # type name when present (like uint32)
+    array_size: Optional[Expression]  # expression inside brackets or None
     default: Optional[Expression]
 
 @dataclass
@@ -66,7 +71,7 @@ class SpecialLocal(Statement):
 
 # --- condition / flow ---
 @dataclass
-class Block:
+class Block(Statement):
     statements: list[Union[Statement, 'ConditionalBlock']]
 
 @dataclass
@@ -74,7 +79,7 @@ class ConditionalBlock(Block):
     condition: Expression
 
 @dataclass
-class IfThenElse:
+class IfThenElse(Statement):
     if_: ConditionalBlock
     elif_: list[ConditionalBlock]
     else_: Optional[Block]
@@ -86,13 +91,13 @@ class Preprocessor:
     args: list[str]
 
 @dataclass
-class SpecialGlobal:
+class SpecialGlobal(Statement):
     name: str
     arg: Optional[str]
 
 # --- struct / top-level ---
 @dataclass
-class Struct:
+class Struct(Statement):
     name: str
     params: list[Identifier]
     block: Block
