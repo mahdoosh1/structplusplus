@@ -212,59 +212,75 @@ class Parser:
             raise ParseError(f"Expected identifier at start of declaration, got {name_tok}")
         # consume name
         self.next()
-
+    
         cur = self.current()
         if cur is None or cur.type != TokenType.COLON:
             raise ParseError(f"Expected ':' after identifier in declaration at {name_tok.position}")
         # consume ':'
         self.next()
-
+    
         type_tok = self.current()
-        if type_tok is None or (type_tok.type != TokenType.IDENT and type_tok.type != TokenType.KEYWORD):
+        if type_tok is None or (type_tok.type != TokenType.IDENT and type_tok.type != TokenType.KEYWORD and type_tok.type != TokenType.SIZE):
             raise ParseError(f"Expected type name after ':' at {name_tok.position}")
         # consume type
         self.next()
         type_expr = Identifier(type_tok.position, type_tok.value)
-
+    
+        # check for constructor-style default: Type(...)
+        default_expr = None
+        cur = self.current()
+        if cur is not None and cur.type == TokenType.PAREN_LEFT:
+            # type(...) style constructor
+            self.next()  # consume '('
+            args = []
+            while True:
+                cur = self.current()
+                if cur is None:
+                    raise ParseError(f"Unterminated constructor call at {type_tok.position}")
+                if cur.type == TokenType.PAREN_RIGHT:
+                    break
+                arg_expr = self.parse_expression()
+                args.append(arg_expr)
+                cur = self.current()
+                if cur is not None and cur.type == TokenType.COMMA:
+                    self.next()  # consume ','
+                    continue
+                else:
+                    break
+            # consume ')'
+            cur = self.current()
+            if cur is None or cur.type != TokenType.PAREN_RIGHT:
+                raise ParseError(f"Expected ')' to close constructor at {type_tok.position}")
+            self.next()
+            default_expr = CallExpression(type_expr.pos, type_expr, args)
+    
         array_expr = None
         cur = self.current()
         if cur is not None and cur.type == TokenType.BRACK_LEFT:
-            # consume '['
-            self.next()
-            size_tok = self.current()
-            if size_tok is None:
-                raise ParseError(f"Unterminated bracketed size at {type_tok.position}")
-            if size_tok.type == TokenType.INTEGER:
-                array_expr = NumberLiteral(size_tok.position, size_tok.value, "integer")
-            elif size_tok.type == TokenType.SIZE:
-                array_expr = NumberLiteral(size_tok.position, size_tok.value, "size")
-            elif size_tok.type == TokenType.IDENT:
-                array_expr = Identifier(size_tok.position, size_tok.value)
-            else:
-                raise ParseError(f"Invalid array size token {size_tok} at {size_tok.position}")
-            # consume size token
-            self.next()
+            self.next()  # consume '['
+            array_expr = self.parse_expression()
             cur = self.current()
             if cur is None or cur.type != TokenType.BRACK_RIGHT:
-                raise ParseError(f"Expected ']' after array size at {size_tok.position}")
-            # consume ']'
-            self.next()
-
-        default_expr = None
+                raise ParseError(f"Expected ']' after array expression at {type_tok.position}")
+            self.next()  # consume ']'
+    
         cur = self.current()
         if cur is not None and cur.type == TokenType.EQUALS:
-            # consume '='
-            self.next()
+            self.next()  # consume '='
             default_expr = self.parse_expression()
-
+    
         cur = self.current()
         if cur is None or cur.type != TokenType.SEMICOLON:
             raise ParseError(f"Expected ';' after declaration at {type_tok.position}")
-        # consume ';'
-        self.next()
-
-        return DeclareStatement(name_tok.position, Identifier(name_tok.position, name_tok.value),
-                                type_expr, array_expr, default_expr)
+        self.next()  # consume ';'
+    
+        return DeclareStatement(
+            name_tok.position,
+            Identifier(name_tok.position, name_tok.value),
+            type_expr,
+            array_expr,
+            default_expr
+        )
 
     def parse_if(self):
         if_tok = self.current()
