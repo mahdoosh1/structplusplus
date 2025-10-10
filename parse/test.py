@@ -6,4 +6,6 @@ with open("example.spp") as file:
 lexed = lexer.lex(example_code)
 parse = parser.Parser(lexed)
 parsed = parse.parse_program()
-print(parsed)
+import ctree
+ctree.ipython_show_ast(parsed)
+pprint(parsed)
