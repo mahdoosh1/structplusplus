@@ -9,6 +9,7 @@ class TokenType(StrEnum):
     FLOAT = auto()
     STRING = auto()
     KEYWORD = auto()
+    PREPROCESSOR = auto()
     
     PAREN_LEFT = auto()
     PAREN_RIGHT = auto()
@@ -35,6 +36,9 @@ class Match:
     STRING = re.compile(r'"([^"\\]|\\.)*"')
     INTEGER = re.compile(r"(?:0[bB][01_]+|0[oO][0-7_]+|0[xX][0-9A-Fa-f_]+|\d[\d_]*)")
     FLOAT = re.compile(r"(?:\d[\d_]*\.\d[\d_]*|\d[\d_]*\.|\.\d[\d_]*)(?:[eE][+-]?\d+)?|\d[\d_]*(?:[eE][+-]?\d+)")
+    PREPROCESSORS = {
+        "define","undef","ifdef","ifndef","endif"
+    }
     KEYWORDS = {
         "struct","if","elif","else","raise",
         "reserve","noreserve","endian","front","behind","big","little",
@@ -120,6 +124,8 @@ def lex(code: str) -> list[Token]:
             if text in ("B","b") and tokens[-1][0] == TokenType.INTEGER:
                 text = tokens.pop()[1]+text
                 token_type = TokenType.SIZE
+            elif text in Match.PREPROCESSORS:
+                token_type = TokenType.PREPROCESSOR
             elif text in Match.KEYWORDS:
                 token_type = TokenType.KEYWORD
             else:

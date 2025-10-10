@@ -100,17 +100,9 @@ class Parser:
                 node = FieldAccess(node.pos, node, field_tok.value)
             return node
 
-        if tok.type == TokenType.INTEGER:
+        if tok.type in (TokenType.INTEGER, TokenType.SIZE, TokenType.FLOAT):
             self.next()
-            return NumberLiteral(tok.position, tok.value, "integer")
-
-        if tok.type == TokenType.SIZE:
-            self.next()
-            return NumberLiteral(tok.position, tok.value, "size")
-
-        if tok.type == TokenType.FLOAT:
-            self.next()
-            return NumberLiteral(tok.position, tok.value, "float")
+            return NumberLiteral(tok.position, tok.value, tok.type.value)
 
         if tok.type == TokenType.STRING:
             self.next()
@@ -203,6 +195,8 @@ class Parser:
 
         if tok.type == TokenType.IDENT:
             return self.parse_declaration()
+        if tok.type == TokenType.HASHTAG:
+            return self.parse_preprocessor()
 
         raise ParseError(f"Unexpected token {tok.value} in statement at {tok.position}")
 
@@ -224,7 +218,10 @@ class Parser:
             raise ParseError(f"Expected type name after ':' at {name_tok.position}")
         # consume type
         self.next()
-        type_expr = Identifier(type_tok.position, type_tok.value)
+        if type_tok.type == TokenType.SIZE:
+            type_expr = Size(type_tok.position, NumberLiteral(type_tok.position, type_tok.value, type_tok.type.value))
+        else:
+            type_expr = Identifier(type_tok.position, type_tok.value)
     
         # check for constructor-style default: Type(...)
         default_expr = None
@@ -252,7 +249,7 @@ class Parser:
             if cur is None or cur.type != TokenType.PAREN_RIGHT:
                 raise ParseError(f"Expected ')' to close constructor at {type_tok.position}")
             self.next()
-            default_expr = CallExpression(type_expr.pos, type_expr, args)
+            default_expr = CallExpression(type_expr.pos, args)
     
         array_expr = None
         cur = self.current()
@@ -395,7 +392,7 @@ class Parser:
         # consume '#'
         self.next()
         name_tok = self.current()
-        if name_tok is None or name_tok.type != TokenType.KEYWORD:
+        if name_tok is None or name_tok.type not in (TokenType.KEYWORD, TokenType.PREPROCESSOR):
             raise ParseError(f"Expected preprocessor keyword after '#' at {cur.position}")
         # consume keyword
         self.next()
@@ -404,7 +401,10 @@ class Parser:
             cur = self.current()
             if cur is None:
                 break
-            if cur.type != TokenType.KEYWORD:
+            if name_tok.type != TokenType.PREPROCESSOR:
+                if cur.type != TokenType.KEYWORD:
+                    break
+            elif cur.position[0] > name_tok.position[0]:
                 break
             args.append(cur.value)
             self.next()

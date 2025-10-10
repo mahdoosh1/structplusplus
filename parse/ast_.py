@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional, Union
 from enum import Enum, auto
+from lexer import TokenType
 Pos = tuple[int, int]
 
 class NumberKind(Enum):
@@ -15,7 +16,6 @@ class Expression:
 
 @dataclass
 class CallExpression(Expression):
-    callee: Expression
     args: list[Expression]
 
 @dataclass
@@ -25,8 +25,11 @@ class Identifier(Expression):
 @dataclass
 class NumberLiteral(Expression):
     raw: str   # keep original text (integers, floats, sizes like "2B")
-    kind: str  # "integer"|"float"|"size"
+    kind: Union[str, TokenType]  # "integer"|"float"|"size"
 
+@dataclass
+class Size(Expression):
+    value: Union[str, NumberLiteral]
 @dataclass
 class StringLiteral(Expression):
     value: str
