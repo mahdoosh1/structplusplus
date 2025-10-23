@@ -29,7 +29,10 @@ def keyrepr(obj, key, value):
         output = f"{key}={value.__class__.__name__}"
     if isinstance(getattr(value, "name", None), str):
         if not isinstance(value, ast_.Identifier):
-            output += f"({value.name})"
+            if isinstance(value, str):
+                output += f"({value})"
+            else:
+                output += f"({value.name})"
     return output
 
 def ast_to_json(obj):
