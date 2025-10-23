@@ -1,0 +1,7 @@
+# Python files
+*.pyo
+*.pyc
+__pycache__
+
+# Specific
+# ast.json
