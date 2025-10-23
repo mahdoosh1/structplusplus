@@ -76,6 +76,9 @@ class SpecialLocal(Statement):
 @dataclass
 class Block(Statement):
     statements: list[Union[Statement, 'ConditionalBlock']]
+@dataclass
+class MemoryBlock(Statement):
+    code: str
 
 @dataclass
 class ConditionalBlock(Block):
@@ -101,9 +104,10 @@ class SpecialGlobal(Statement):
 # --- struct / top-level ---
 @dataclass
 class Struct(Statement):
+    type: str
     name: str
     params: list[Identifier]
-    block: Block
+    block: Union[Block, MemoryBlock]
 
 @dataclass
 class Program:

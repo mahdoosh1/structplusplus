@@ -5,8 +5,10 @@ from types import NoneType
 with open("example.spp") as file:
     example_code = file.read()
 lexed = lexer.lex(example_code)
+#pprint(lexed[:10])
 parse = parser.Parser(lexed)
 parsed = parse.parse_program()
+#pprint(parsed.items[3].block.code)
 
 import json
 
@@ -43,7 +45,7 @@ def ast_to_json(obj):
             keyrepr(obj, k, v):ast_to_json(v) for k, v in iterator if valid(obj, k, v)
         }
 
-print(parsed.items[-1])
+#print(parsed.items[-1])
 
 with open("ast.json", "w") as f:
     json.dump(ast_to_json(parsed), f, indent=2)

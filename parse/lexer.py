@@ -44,7 +44,7 @@ class Match:
         "reserve","noreserve","endian","front","behind","big","little",
         "define","undef","ifdef","ifndef","endif",
         "uint8","uint16","uint32","uint64","int8","int16","int32","int64",
-        "float","double"
+        "float","double","memory"
     }
     OPERATORS = {
         "||","&&","<=",">=","==","!=","+","-","&","*","!","/","%","|","~","^","<",">","."
@@ -111,14 +111,20 @@ def lex(code: str) -> list[Token]:
             match = Match.STRING.match(code, index)
             if not match:
                 raise SyntaxError(f"Unterminated string literal at {pos}")
-            add_token(TokenType.STRING, match.group())
+            text = match.group()
+            add_token(TokenType.STRING, text)
             index = match.end()
+            column += len(text)
         elif (match := Match.FLOAT.match(code, index)):
-            add_token(TokenType.FLOAT, match.group().replace("_", ""))
+            text = match.group().replace("_", "")
+            add_token(TokenType.FLOAT, text)
             index = match.end()
+            column += len(text)
         elif (match := Match.INTEGER.match(code, index)):
-            add_token(TokenType.INTEGER, match.group().replace("_", ""))
+            text = match.group().replace("_", "")
+            add_token(TokenType.INTEGER, text)
             index = match.end()
+            column += len(text)
         elif (match := Match.IDENT.match(code, index)):
             text = match.group()
             if text in ("B","b") and tokens[-1][0] == TokenType.INTEGER:
@@ -132,12 +138,14 @@ def lex(code: str) -> list[Token]:
                 token_type = TokenType.IDENT
             add_token(token_type, text)
             index = match.end()
+            column += len(text)
         else:
             matched = False
             for operator in sorted(Match.OPERATORS, key=len, reverse=True):
                 if code.startswith(operator, index):
                     add_token(TokenType.OPERATOR, operator)
                     index += len(operator)
+                    column += len(operator)
                     matched = True
                     break
 
@@ -149,6 +157,7 @@ def lex(code: str) -> list[Token]:
                     raise SyntaxError(f"Unexpected character {char!r} at {pos}")
                 
                 add_token(token_type, char)
+                column += len(char)
                 index += 1
                 matched = True
     return tokens

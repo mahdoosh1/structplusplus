@@ -1,25 +1,33 @@
 #endian little
 #noreserve
-Pixel() {
+struct Pixel() {
+    blue: uint8;
+    green: uint8;
+    red: uint8;
+}
+memory Pixel() {
     blue: uint8;
     green: uint8;
     red: uint8;
 }
 
-File() {
+struct File() {
     file_header: FileHeader;
     dib_header: DIBHeader;
     pixels: PixelArray(dib_header.width, dib_header.height, dib_header.bpp);
 }
+memory Memory(file){
+    Pixel[file.dib_header.width][file.dib_header.height] Memory;
+}
 
-FileHeader() {
+struct FileHeader() {
     magic: 2B;        // 'BM'
     file_size: uint32;
     reserved: 4B;
     pixel_offset: uint32;
 }
 
-DIBHeader() {
+struct DIBHeader() {
     header_size: uint32;
     if (header_size != 40) {
         raise "Invalid DIB header size";
@@ -45,11 +53,11 @@ DIBHeader() {
     important_colors: uint32;
 }
 
-PixelRow(width, bpp) {
+struct PixelRow(width, bpp) {
     pixels: Pixel[width];
     padding: uint8[(4 - (width * (bpp / 8)) % 4) % 4];
 }
 
-PixelArray(width, height, bpp) {
+struct PixelArray(width, height, bpp) {
     rows: PixelRow(width, bpp)[height];
 }

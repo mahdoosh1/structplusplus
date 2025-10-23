@@ -134,6 +134,23 @@ class Parser:
         return 0
 
     # --- block parsing ---
+    def parse_memory_block(self):
+        cur = self.current()
+        if cur is None or cur.type != TokenType.BRACE_LEFT:
+            raise ParseError(f"Expected '{{' at start of block, got {cur}")
+        # consume '{'
+        self.next()
+        codes = []
+        while True:
+            cur = self.current()
+            if cur is None:
+                raise ParseError("Unterminated block (expected '}')")
+            if cur.type == TokenType.BRACE_RIGHT:
+                break
+            text = self.parse_memory_statement()
+            codes.append(text)
+        self.next()
+        return MemoryBlock(cur.position, ''.join(codes))
     def parse_block(self):
         cur = self.current()
         if cur is None or cur.type != TokenType.BRACE_LEFT:
@@ -156,6 +173,38 @@ class Parser:
         return Block(cur.position,statements)
 
     # --- statement parsing ---
+    def parse_memory_statement(self):
+        tok = self.current()
+        if tok is None:
+            raise ParseError("Unexpected EOF in statement")
+        tok_position = list(tok.position)
+        tok_position[1] += len(tok.value)
+
+        depth = 0
+        position = list(tok.position)
+        position[1] += len(tok.value)
+        output = ""
+        while True:
+            if tok.type == TokenType.BRACE_RIGHT and depth == 0:
+                break
+            elif tok.type == TokenType.BRACE_LEFT:
+                depth += 1
+            if tok.type == TokenType.BRACE_RIGHT:
+                depth -= 1
+            while tok_position[0] > position[0]:
+                output += "\n"
+                position[0] += 1
+                position[1] = tok_position[1]
+            output += tok.value
+            if tok_position[1] > position[1]:
+                output += " "*(tok_position[1] - position[1])
+                position[1] = tok_position[1]+len(output)
+            tok = self.next()
+            if tok is None:
+                break
+            tok_position = list(tok.position)
+            tok_position[1] += len(tok.value)
+        return output
     def parse_statement(self):
         tok = self.current()
         if tok is None:
@@ -345,7 +394,12 @@ class Parser:
 
     # --- top-level parsing ---
     def parse_struct(self):
-        name_tok = self.current()
+        struct_type = self.current()
+        if struct_type is None or struct_type.type != TokenType.KEYWORD:
+            raise ParseError(f"Expected struct type at {self.current()}")
+        if struct_type.value not in ("struct", "memory"):
+            raise ParseError(f"Expected struct type at {self.current()}")
+        name_tok = self.next()
         if name_tok is None or name_tok.type != TokenType.IDENT:
             raise ParseError(f"Expected struct name identifier at {self.current()}")
         # consume name
@@ -382,13 +436,17 @@ class Parser:
             # consume ')'
             self.next()
 
-        block = self.parse_block()
-        return Struct(name_tok.position, name_tok.value, params, block)
+        if struct_type.value == "memory":
+            block = self.parse_memory_block()
+        else:
+            block = self.parse_block()
+        return Struct(name_tok.position, struct_type.value, name_tok.value, params, block)
 
     def parse_preprocessor(self):
         cur = self.current()
         if cur is None or cur.type != TokenType.HASHTAG:
             raise ParseError(f"Expected '#' preprocessor at {cur}")
+        line = cur.position[0]
         # consume '#'
         self.next()
         name_tok = self.current()
@@ -400,6 +458,8 @@ class Parser:
         while True:
             cur = self.current()
             if cur is None:
+                break
+            if cur.position[0] != line:
                 break
             if name_tok.type != TokenType.PREPROCESSOR:
                 if cur.type != TokenType.KEYWORD:
@@ -440,7 +500,7 @@ class Parser:
             if cur.type == TokenType.ATSIGN:
                 items.append(self.parse_special_global())
                 continue
-            if cur.type == TokenType.IDENT:
+            if cur.type == TokenType.KEYWORD:
                 items.append(self.parse_struct())
                 continue
             raise ParseError(f"Unexpected top-level token {cur.value} at {cur.position}")
