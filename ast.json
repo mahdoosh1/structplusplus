@@ -40,7 +40,7 @@
     "3=Struct(Pixel)": {
       "type": "memory",
       "block=MemoryBlock": {
-        "code": "blue: uint8; \ngreen: uint8;\nred: uint8;"
+        "code": "uint8_t blue;\n    uint8_t green;\n    uint8_t red;\n"
       }
     },
     "4=Struct(File)": {
@@ -104,7 +104,7 @@
         }
       },
       "block=MemoryBlock": {
-        "code": "Pixel[ file.dib_header        .width][file.dib_header.height] Memory;"
+        "code": "Pixel[file.dib_header.width][file.dib_header.height] Memory;\n"
       }
     },
     "6=Struct(FileHeader)": {

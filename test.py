@@ -1,4 +1,4 @@
-import lexer, parser, ast_
+from parse import lexer, parser, ast_
 from pprint import pprint
 from types import NoneType
 
