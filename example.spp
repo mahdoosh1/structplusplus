@@ -6,9 +6,9 @@ struct Pixel() {
     red: uint8;
 }
 memory Pixel() {
-    blue: uint8;
-    green: uint8;
-    red: uint8;
+    uint8_t blue;
+    uint8_t green;
+    uint8_t red;
 }
 
 struct File() {

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional, Union
 from enum import Enum, auto
-from lexer import TokenType
+from .lexer import TokenType
 Pos = tuple[int, int]
 
 class NumberKind(Enum):

@@ -1,5 +1,5 @@
-from ast_ import *
-from lexer import Token, TokenType
+from .ast_ import *
+from .lexer import Token, TokenType
 
 class ParseError(Exception):
     pass
@@ -9,21 +9,33 @@ class Parser:
     def __init__(self, tokens: list[Token]):
         self.tokens = tokens
         self.index = 0
-
+    def _get_token(self, oindex, w=True):
+        if oindex >= len(self.tokens):
+            return None, index
+        index = oindex
+        token = self.tokens[index]
+        while w and token.type == TokenType.WHITESPACE and index < len(self.tokens):
+            index += 1
+            if index >= len(self.tokens):
+                return None, oindex
+            token = self.tokens[index]
+        return token, index
     def next(self):
         self.index += 1
         if self.index < len(self.tokens):
-            return self.tokens[self.index]
+            r, self.index = self._get_token(self.index)
+            return r
         return None
 
     def peek(self):
         if self.index+1 < len(self.tokens):
-            return self.tokens[self.index + 1]
+            return self._get_token(self.index + 1)[0]
         return None
 
     def safe_peek(self):
         if self.index+1 < len(self.tokens):
-            return self.tokens[self.index + 1]
+            r = self._get_token(self.index + 1)[0]
+            if r: return r
         raise EOFError("Code ended too early.")
 
     def expect(self, *values):
@@ -36,7 +48,7 @@ class Parser:
 
     def current(self):
         if self.index < len(self.tokens):
-            return self.tokens[self.index]
+            return self._get_token(self.index)[0]
         return None
 
     # changed: match now checks peek token
@@ -174,15 +186,11 @@ class Parser:
 
     # --- statement parsing ---
     def parse_memory_statement(self):
-        tok = self.current()
+        tok = self._get_token(self.index, False)[0]
         if tok is None:
             raise ParseError("Unexpected EOF in statement")
-        tok_position = list(tok.position)
-        tok_position[1] += len(tok.value)
 
         depth = 0
-        position = list(tok.position)
-        position[1] += len(tok.value)
         output = ""
         while True:
             if tok.type == TokenType.BRACE_RIGHT and depth == 0:
@@ -191,19 +199,11 @@ class Parser:
                 depth += 1
             if tok.type == TokenType.BRACE_RIGHT:
                 depth -= 1
-            while tok_position[0] > position[0]:
-                output += "\n"
-                position[0] += 1
-                position[1] = tok_position[1]
             output += tok.value
-            if tok_position[1] > position[1]:
-                output += " "*(tok_position[1] - position[1])
-                position[1] = tok_position[1]+len(output)
-            tok = self.next()
+            self.index += 1
+            tok = self._get_token(self.index, False)[0]
             if tok is None:
                 break
-            tok_position = list(tok.position)
-            tok_position[1] += len(tok.value)
         return output
     def parse_statement(self):
         tok = self.current()

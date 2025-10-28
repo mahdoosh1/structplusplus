@@ -26,6 +26,8 @@ class TokenType(StrEnum):
     SEMICOLON = auto()
     EQUALS = auto()
 
+    WHITESPACE = auto()
+
 class Token(NamedTuple):
     type: TokenType
     value: str
@@ -74,10 +76,12 @@ def lex(code: str) -> list[Token]:
         char = code[index]
         pos = (line, column)
         if char == "\n":
-            index += 1
+            add_token(TokenType.WHITESPACE, "\n")
             column = 1
             line += 1
+            index += 1
         elif char.isspace():
+            add_token(TokenType.WHITESPACE, char)
             index += 1
             column += 1
         elif code.startswith("//", index):
