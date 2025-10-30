@@ -6,6 +6,7 @@ class TokenType(StrEnum):
     IDENT = auto()
     INTEGER = auto()
     SIZE = auto()
+    REGULARSIZE = auto()
     FLOAT = auto()
     STRING = auto()
     KEYWORD = auto()
@@ -41,12 +42,15 @@ class Match:
     PREPROCESSORS = {
         "define","undef","ifdef","ifndef","endif"
     }
-    KEYWORDS = {
-        "struct","if","elif","else","raise",
-        "reserve","noreserve","endian","front","behind","big","little",
-        "define","undef","ifdef","ifndef","endif",
+    REGULARSIZES = {
         "uint8","uint16","uint32","uint64","int8","int16","int32","int64",
-        "float","double","memory"
+        "float","double"
+    }
+    KEYWORDS = {
+        "struct","code",
+        "if","elif","else","raise",
+        "reserve","noreserve","endian","front","behind","big","little",
+        "define","undef","ifdef","ifndef","endif"
     }
     OPERATORS = {
         "||","&&","<=",">=","==","!=","+","-","&","*","!","/","%","|","~","^","<",">","."
@@ -134,6 +138,8 @@ def lex(code: str) -> list[Token]:
             if text in ("B","b") and tokens[-1][0] == TokenType.INTEGER:
                 text = tokens.pop()[1]+text
                 token_type = TokenType.SIZE
+            elif text in Match.REGULARSIZES:
+                token_type = TokenType.REGULARSIZE
             elif text in Match.PREPROCESSORS:
                 token_type = TokenType.PREPROCESSOR
             elif text in Match.KEYWORDS:

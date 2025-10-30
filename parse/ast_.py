@@ -15,21 +15,25 @@ class Expression:
     pos: Pos
 
 @dataclass
-class CallExpression(Expression):
-    args: list[Expression]
-
-@dataclass
 class Identifier(Expression):
     name: str
 
 @dataclass
+class CallExpression(Expression):
+    args: list[Identifier]
+
+@dataclass
 class NumberLiteral(Expression):
-    raw: str   # keep original text (integers, floats, sizes like "2B")
-    kind: Union[str, TokenType]  # "integer"|"float"|"size"
+    raw: str
 
 @dataclass
 class Size(Expression):
-    value: Union[str, NumberLiteral]
+    value: NumberLiteral
+
+@dataclass
+class RegularSize(Expression):
+    value: str
+
 @dataclass
 class StringLiteral(Expression):
     value: str
@@ -63,7 +67,7 @@ class RaiseStmt(Statement):
 class DeclareStatement(Statement):
     # can be: ident ":" ident | size [ "[" ( ident | number | size ) "]" ] | [ "=" ( ident | number ) ]
     name: Identifier        # identifier when present (for ident:ident form or named field)
-    type: Expression   # type name when present (like uint32)
+    type: Union[Size, RegularSize, Identifier]   # type name when present (like uint32)
     array_size: Optional[Expression]  # expression inside brackets or None
     default: Optional[Expression]
 
@@ -104,10 +108,9 @@ class SpecialGlobal(Statement):
 # --- struct / top-level ---
 @dataclass
 class Struct(Statement):
-    type: str
     name: str
     params: list[Identifier]
-    block: Union[Block, MemoryBlock]
+    block: Union[Block, CodeBlock]
 
 @dataclass
 class Program:

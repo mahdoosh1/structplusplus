@@ -114,7 +114,11 @@ class Parser:
 
         if tok.type in (TokenType.INTEGER, TokenType.SIZE, TokenType.FLOAT):
             self.next()
-            return NumberLiteral(tok.position, tok.value, tok.type.value)
+            return NumberLiteral(tok.position, tok.value)
+        
+        if tok.type == TokenType.REGULARSIZE:
+            self.next()
+            return RegularSize(tok.position, tok.value)
 
         if tok.type == TokenType.STRING:
             self.next()
@@ -263,12 +267,16 @@ class Parser:
         self.next()
     
         type_tok = self.current()
-        if type_tok is None or (type_tok.type != TokenType.IDENT and type_tok.type != TokenType.KEYWORD and type_tok.type != TokenType.SIZE):
-            raise ParseError(f"Expected type name after ':' at {name_tok.position}")
+        if type_tok is None:
+            raise ParseError(f"Expected type after ':' at {name_tok.position}")
+        if type_tok.type not in (TokenType.IDENT,TokenType.REGULARSIZE, TokenType.SIZE):
+            raise ParseError(f"Expected type after ':' at {type_tok.position}")
         # consume type
         self.next()
         if type_tok.type == TokenType.SIZE:
-            type_expr = Size(type_tok.position, NumberLiteral(type_tok.position, type_tok.value, type_tok.type.value))
+            type_expr = Size(type_tok.position, NumberLiteral(type_tok.position, type_tok.value))
+        elif type_tok.type == TokenType.REGULARSIZE:
+            type_expr = RegularSize(type_tok.position, type_tok.value)
         else:
             type_expr = Identifier(type_tok.position, type_tok.value)
     
@@ -440,7 +448,7 @@ class Parser:
             block = self.parse_code_block()
         else:
             block = self.parse_block()
-        return Struct(name_tok.position, struct_type.value, name_tok.value, params, block)
+        return Struct(name_tok.position, name_tok.value, params, block)
 
     def parse_preprocessor(self):
         cur = self.current()
