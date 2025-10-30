@@ -9,7 +9,7 @@ struct Pixel() {
 struct File() {
     file_header: FileHeader;
     dib_header: DIBHeader;
-    pixels: PixelArray(dib_header.width.value, dib_header.height.value, dib_header.bpp.value);
+    pixels: PixelArray(dib_header.width, dib_header.height, dib_header.bpp);
 }
 
 struct FileHeader() {
@@ -21,21 +21,21 @@ struct FileHeader() {
 
 struct DIBHeader() {
     header_size: uint32;
-    if (header_size.value != 40) {
+    if (header_size != 40) {
         raise "Invalid DIB header size";
     }
     width: uint32;
     height: uint32;
     planes: uint16;
-    if (planes.value != 1) {
+    if (planes != 1) {
         raise "BMP must have 1 plane";
     }
     bpp: uint16;
-    if (bpp.value != 24) {
+    if (bpp != 24) {
         raise "Only 24-bit supported";
     }
     compression: uint32;
-    if (compression.value != 0) {
+    if (compression != 0) {
         raise "Only uncompressed supported";
     }
     image_size: uint32;

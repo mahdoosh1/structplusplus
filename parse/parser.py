@@ -108,9 +108,7 @@ class Parser:
                 field_tok = self.current()
                 if field_tok is None:
                     raise ParseError(f"Expected field after '.' at {tok.position}")
-                if field_tok.type not in (TokenType.IDENT, TokenType.KEYWORD):
-                    raise ParseError(f"Expected field after '.' at {field_tok.position}")
-                if field_tok.type == TokenType.KEYWORD and field_tok.value != "value":
+                if field_tok.type != TokenType.IDENT:
                     raise ParseError(f"Expected field after '.' at {field_tok.position}")
                 self.next()
                 node = FieldAccess(node.pos, node, field_tok.value)

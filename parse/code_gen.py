@@ -1,39 +1,45 @@
 from . import ast_
 
 PRECODE = """
-from ctypes import c_uint8, c_uint16, c_uint32, c_int8, c_int16, c_int32, c_float, c_double
 from ast import literal_eval
+from ctypes import c_float, c_double
 
 def type_uint8(data, offset):
-    obj = c_uint8.from_buffer_copy(data, offset)
+    obj = int.from_bytes(data[offset:offset+1],'little')
     return obj, offset + 1
 
 def type_uint16(data, offset):
-    obj = c_uint16.from_buffer_copy(data, offset)
+    obj = int.from_bytes(data[offset:offset+2],'little')
     return obj, offset + 2
 
 def type_uint32(data, offset):
-    obj = c_uint32.from_buffer_copy(data, offset)
+    obj = int.from_bytes(data[offset:offset+4],'little')
     return obj, offset + 4
 
 def type_int8(data, offset):
-    obj = c_int8.from_buffer_copy(data, offset)
+    obj = int.from_bytes(data[offset:offset+1],'little')
+    if obj & 128:
+        obj -= 256
     return obj, offset + 1
 
 def type_int16(data, offset):
-    obj = c_int16.from_buffer_copy(data, offset)
+    obj = int.from_bytes(data[offset:offset+2],'little')
+    if obj & 32768:
+        obj -= 65536
     return obj, offset + 2
 
 def type_int32(data, offset):
-    obj = c_int32.from_buffer_copy(data, offset)
+    obj = int.from_bytes(data[offset:offset+4],'little')
+    if obj & 2147483648:
+        obj -= 4294967296
     return obj, offset + 4
 
 def type_float(data, offset):
-    obj = c_float.from_buffer_copy(data, offset)
+    obj = c_float.from_buffer_copy(data, offset).value
     return obj, offset + 4
 
 def type_double(data, offset):
-    obj = c_double.from_buffer_copy(data, offset)
+    obj = c_double.from_buffer_copy(data, offset).value
     return obj, offset + 8
 
 def type_array(data, offset, function, array_size, function_args):
@@ -133,10 +139,6 @@ class Generator:
             return f"ctx.get('{expression.name}')"
         if isinstance(expression, ast_.FieldAccess):
             result, is_certain = self._gen_expression(expression.target, extras, certains, True)
-            if expression.field == "value":
-                if return_certain:
-                    return result+".value", True # type: ignore
-                return result+".value"
             if is_certain:
                 if return_certain:
                     return result+f"['{expression.field}']", True # type: ignore
