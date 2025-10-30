@@ -11,6 +11,7 @@ class TokenType(StrEnum):
     STRING = auto()
     KEYWORD = auto()
     PREPROCESSOR = auto()
+    SPECIAL = auto()
     
     PAREN_LEFT = auto()
     PAREN_RIGHT = auto()
@@ -42,6 +43,9 @@ class Match:
     PREPROCESSORS = {
         "define","undef","ifdef","ifndef","endif"
     }
+    SPECIALS = {
+        "endian", "reserve", "noreserve"
+    }
     REGULARSIZES = {
         "uint8","uint16","uint32","uint64","int8","int16","int32","int64",
         "float","double"
@@ -49,7 +53,7 @@ class Match:
     KEYWORDS = {
         "struct","code",
         "if","elif","else","raise",
-        "reserve","noreserve","endian","front","behind","big","little",
+        "front","behind","big","little",
         "define","undef","ifdef","ifndef","endif",
         "value"
     }
@@ -143,6 +147,8 @@ def lex(code: str) -> list[Token]:
                 token_type = TokenType.REGULARSIZE
             elif text in Match.PREPROCESSORS:
                 token_type = TokenType.PREPROCESSOR
+            elif text in Match.SPECIALS:
+                token_type = TokenType.SPECIAL
             elif text in Match.KEYWORDS:
                 token_type = TokenType.KEYWORD
             else:

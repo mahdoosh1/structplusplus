@@ -1,36 +1,69 @@
 from ctypes import c_uint8, c_uint16, c_uint32, c_int8, c_int16, c_int32, c_float, c_double
 from ast import literal_eval
+ENDIAN = 'little'
 
 def type_uint8(data, offset):
-    obj = c_uint8.from_buffer_copy(data, offset)
+    if ENDIAN == 'little':
+        type_ = c_uint8.__ctype_le__ # type: ignore
+    else:
+        type_ = c_uint8.__ctype_be__ # type: ignore
+    obj = type_.from_buffer_copy(data, offset)
     return obj, offset + 1
 
 def type_uint16(data, offset):
-    obj = c_uint16.from_buffer_copy(data, offset)
+    if ENDIAN == 'little':
+        type_ = c_uint16.__ctype_le__ # type: ignore
+    else:
+        type_ = c_uint16.__ctype_be__ # type: ignore
+    obj = type_.from_buffer_copy(data, offset)
     return obj, offset + 2
 
 def type_uint32(data, offset):
-    obj = c_uint32.from_buffer_copy(data, offset)
+    if ENDIAN == 'little':
+        type_ = c_uint32.__ctype_le__ # type: ignore
+    else:
+        type_ = c_uint32.__ctype_be__ # type: ignore
+    obj = type_.from_buffer_copy(data, offset)
     return obj, offset + 4
 
 def type_int8(data, offset):
-    obj = c_int8.from_buffer_copy(data, offset)
+    if ENDIAN == 'little':
+        type_ = c_int8.__ctype_le__ # type: ignore
+    else:
+        type_ = c_int8.__ctype_be__ # type: ignore
+    obj = type_.from_buffer_copy(data, offset)
     return obj, offset + 1
 
 def type_int16(data, offset):
-    obj = c_int16.from_buffer_copy(data, offset)
+    if ENDIAN == 'little':
+        type_ = c_int16.__ctype_le__ # type: ignore
+    else:
+        type_ = c_int16.__ctype_be__ # type: ignore
+    obj = type_.from_buffer_copy(data, offset)
     return obj, offset + 2
 
 def type_int32(data, offset):
-    obj = c_int32.from_buffer_copy(data, offset)
+    if ENDIAN == 'little':
+        type_ = c_uint32.__ctype_le__ # type: ignore
+    else:
+        type_ = c_uint32.__ctype_be__ # type: ignore
+    obj = type_.from_buffer_copy(data, offset)
     return obj, offset + 4
 
 def type_float(data, offset):
-    obj = c_float.from_buffer_copy(data, offset)
+    if ENDIAN == 'little':
+        type_ = c_float.__ctype_le__ # type: ignore
+    else:
+        type_ = c_float.__ctype_be__ # type: ignore
+    obj = type_.from_buffer_copy(data, offset)
     return obj, offset + 4
 
 def type_double(data, offset):
-    obj = c_double.from_buffer_copy(data, offset)
+    if ENDIAN == 'little':
+        type_ = c_double.__ctype_le__ # type: ignore
+    else:
+        type_ = c_double.__ctype_be__ # type: ignore
+    obj = type_.from_buffer_copy(data, offset)
     return obj, offset + 8
 
 def type_array(data, offset, function, array_size, function_args):
@@ -42,11 +75,11 @@ def type_array(data, offset, function, array_size, function_args):
 
 def size(data, offset, bytes_):
     n = int(literal_eval(bytes_[:-1]))
-    val = int.from_bytes(data[offset:offset+n], 'little')
+    val = data[offset:offset+n]
     return val, offset + n
 
-# PRE: "endian little"
-# PRE: "noreserve "
+ENDIAN = 'little'
+# GLOBAL: "noreserve"
 def parsePixel(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
     ctx = {}
     ctx['blue'], offset = type_uint8(data, offset)

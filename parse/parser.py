@@ -462,7 +462,7 @@ class Parser:
         # consume '#'
         self.next()
         name_tok = self.current()
-        if name_tok is None or name_tok.type not in (TokenType.KEYWORD, TokenType.PREPROCESSOR):
+        if name_tok is None or name_tok.type not in (TokenType.SPECIAL, TokenType.PREPROCESSOR):
             raise ParseError(f"Expected preprocessor keyword after '#' at {cur.position}")
         # consume keyword
         self.next()
@@ -472,14 +472,16 @@ class Parser:
             if cur is None:
                 break
             if cur.position[0] != line:
+                if name_tok.type == TokenType.SPECIAL:
+                    args.append(None)
                 break
-            if name_tok.type != TokenType.PREPROCESSOR:
+            if name_tok.type == TokenType.SPECIAL:
                 if cur.type != TokenType.KEYWORD:
                     break
-            elif cur.position[0] > name_tok.position[0]:
-                break
             args.append(cur.value)
             self.next()
+        if name_tok.type == TokenType.SPECIAL:
+            return SpecialGlobal(name_tok.position, name_tok.value, args[0])
         return Preprocessor(name_tok.value, args)
 
     def parse_special_global(self):
