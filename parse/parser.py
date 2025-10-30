@@ -11,7 +11,7 @@ class Parser:
         self.index = 0
     def _get_token(self, oindex, w=True):
         if oindex >= len(self.tokens):
-            return None, index
+            return None, oindex
         index = oindex
         token = self.tokens[index]
         while w and token.type == TokenType.WHITESPACE and index < len(self.tokens):
