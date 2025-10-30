@@ -70,7 +70,7 @@ class Generator:
     def indent(self, text, depth=1):
         return depth*self.indent_ + text.replace('\n','\n'+depth*self.indent_)
     
-    def _gen_statement(self, statement: ast_.Statement, extras = None):
+    def _gen_statement(self, statement: ast_.Statement, extras, certains: list, certain = False):
         if isinstance(statement, ast_.DeclareStatement):
             this_block = ""
             callable_ = ""
@@ -83,18 +83,18 @@ class Generator:
             elif isinstance(statement.type, ast_.Identifier):
                 parameters = self.functions[statement.type.name]
                 if isinstance(statement.default, ast_.CallExpression) and len(parameters) > 0:
-                    arguments = (self._gen_expression(argument, extras) for argument in statement.default.args)
-                    this_block = "subctx = {\n"
+                    arguments = (self._gen_expression(argument, extras, certains) for argument in statement.default.args)
+                    this_block = "sub_ctx = {\n"
                     for parameter, argument in zip(parameters, arguments):
                         this_block += f"{self.indent_}'{parameter}':{argument},\n"
                     this_block += "}"
                     callable_ = f"parse{statement.type.name}"
-                    call_arguments.append("subctx")
+                    call_arguments.append("sub_ctx")
                 else:
                     callable_ = f"parse{statement.type.name}"
                     call_arguments.append("{}")
             if this_block:
-                result_ = f"{this_block}\nctx['{statement.name.name}'], offset = "
+                result_ = this_block+"\n"+f"ctx['{statement.name.name}'], offset = "
             else:
                 result_ = f"ctx['{statement.name.name}'], offset = "
             if statement.array_size is not None:
@@ -102,50 +102,76 @@ class Generator:
                     call_arguments.append("")
                 call_arguments = ", ".join(call_arguments[2:]).strip()
                 call_arguments = "("+call_arguments+")"
-                size_ = self._gen_expression(statement.array_size, extras)
+                size_ = self._gen_expression(statement.array_size, extras, certains)
                 result_ += f"type_array(data, offset, {callable_}, int({size_}), {call_arguments})"
             else:
                 call_arguments = ", ".join(call_arguments).strip()
                 call_arguments = "("+call_arguments+")"
                 result_ += f"{callable_}{call_arguments}"
+            if certain:
+                certains.append(statement.name.name)
             return result_
         elif isinstance(statement, ast_.IfThenElse):
-            return self._gen_condition(statement, extras)
+            return self._gen_condition(statement, extras, certains)
         elif isinstance(statement, ast_.RaiseStmt):
             return f"raise ValueError({statement.message.value})"
         print("E: ",statement)
         return ""
     
-    def _gen_expression(self, expression: ast_.Expression, extras = None):
+    def _gen_expression(self, expression: ast_.Expression, extras = None, certains = None, return_certain = False) -> str:
         if isinstance(expression, ast_.Identifier):
             if extras is not None and expression.name in extras:
+                if return_certain:
+                    return f"extras['{expression.name}']", True # type: ignore
                 return f"extras['{expression.name}']"
+            if certains is not None and expression.name in certains:
+                if return_certain:
+                    return f"ctx['{expression.name}']", True # type: ignore
+                return f"ctx['{expression.name}']"
+            if return_certain:
+                return f"ctx.get('{expression.name}')", False # type: ignore
             return f"ctx.get('{expression.name}')"
         if isinstance(expression, ast_.FieldAccess):
+            result, is_certain = self._gen_expression(expression.target, extras, certains, True)
             if expression.field == "value":
-                return self._gen_expression(expression.target, extras)+".value"
-            return self._gen_expression(expression.target, extras)+f".get('{expression.field}')"
+                if return_certain:
+                    return result+".value", True # type: ignore
+                return result+".value"
+            if is_certain:
+                if return_certain:
+                    return result+f"['{expression.field}']", True # type: ignore
+                return result+f"['{expression.field}']"
+            if return_certain:
+                return result+f".get('{expression.field}')", False # type: ignore
+            return result+f".get('{expression.field}')"
         if isinstance(expression, ast_.BinaryOp):
-            return "("+self._gen_expression(expression.left, extras)+expression.op+self._gen_expression(expression.right, extras)+")"
+            left = self._gen_expression(expression.left, extras, certains)
+            right = self._gen_expression(expression.right, extras, certains)
+            result = "("+left+expression.op+right+")"
+            if return_certain:
+                return result, False # type: ignore
+            return result
         if isinstance(expression, ast_.NumberLiteral):
+            if return_certain:
+                return expression.raw, False # type: ignore
             return expression.raw
         print("X: ",expression)
         return ""
     
-    def _gen_condition(self, ifthenelse: ast_.IfThenElse, extras=None):
-        this_block = f"if " + self._gen_expression(ifthenelse.if_.condition, extras)+":\n"
+    def _gen_condition(self, ifthenelse: ast_.IfThenElse, extras, certains: list):
+        this_block = f"if " + self._gen_expression(ifthenelse.if_.condition, extras, certains)+":\n"
         for statement in ifthenelse.if_.statements:
-            this_block += f"{self.indent_}{self._gen_statement(statement)}\n"
+            this_block += f"{self.indent_}{self._gen_statement(statement, extras, certains, False)}\n"
         if len(ifthenelse.elif_) > 0:
             for elif_ in ifthenelse.elif_:
-                this_block += f"elif " + self._gen_expression(elif_.condition, extras)+":\n"
+                this_block += f"elif " + self._gen_expression(elif_.condition, extras, certains)+":\n"
                 for statement in elif_.statements:
-                    this_block += f"{self.indent_}{self._gen_statement(statement)}\n"
+                    this_block += f"{self.indent_}{self._gen_statement(statement, extras, certains, False)}\n"
         if ifthenelse.else_ is not None:
             this_block += "else:\n"
             for statement in ifthenelse.else_.statements:
                 self.depth += 1
-                this_block += f"{self.indent_}{self._gen_statement(statement)}\n"
+                this_block += f"{self.indent_}{self._gen_statement(statement, extras, certains, False)}\n"
                 self.depth -= 1
         return this_block
     
@@ -153,14 +179,15 @@ class Generator:
         if isinstance(struct.block, ast_.CodeBlock):
             this_block = struct.block.code
         else:
-            this_block = f"def parse{struct.name}(data: bytes, offset: int, extras: dict):\n"
+            this_block = f"def parse{struct.name}(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:\n"
             this_block += self.indent_+"ctx = {}\n"
             extras = self.functions[struct.name]
+            certains = []
             for parameter in extras:
                 this_block += f"{self.indent_}if extras.get('{parameter}') is None:\n"
                 this_block += f"{self.indent_*2}raise ValueError(\"Argument for {repr(parameter)} is not passed\")\n"
             for statement in struct.block.statements:
-                statement = self._gen_statement(statement, extras)
+                statement = self._gen_statement(statement, extras, certains, True)
                 this_block += self.indent(statement) + "\n"
             this_block += f"{self.indent_}return ctx, offset\n"
         return this_block
