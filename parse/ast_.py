@@ -77,7 +77,7 @@ class SpecialLocal(Statement):
 class Block(Statement):
     statements: list[Union[Statement, 'ConditionalBlock']]
 @dataclass
-class MemoryBlock(Statement):
+class CodeBlock(Statement):
     code: str
 
 @dataclass

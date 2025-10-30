@@ -146,7 +146,7 @@ class Parser:
         return 0
 
     # --- block parsing ---
-    def parse_memory_block(self):
+    def parse_code_block(self):
         cur = self.current()
         if cur is None or cur.type != TokenType.BRACE_LEFT:
             raise ParseError(f"Expected '{{' at start of block, got {cur}")
@@ -159,10 +159,10 @@ class Parser:
                 raise ParseError("Unterminated block (expected '}')")
             if cur.type == TokenType.BRACE_RIGHT:
                 break
-            text = self.parse_memory_statement()
+            text = self.parse_code_statement()
             codes.append(text)
         self.next()
-        return MemoryBlock(cur.position, ''.join(codes))
+        return CodeBlock(cur.position, ''.join(codes))
     def parse_block(self):
         cur = self.current()
         if cur is None or cur.type != TokenType.BRACE_LEFT:
@@ -185,7 +185,7 @@ class Parser:
         return Block(cur.position,statements)
 
     # --- statement parsing ---
-    def parse_memory_statement(self):
+    def parse_code_statement(self):
         tok = self._get_token(self.index, False)[0]
         if tok is None:
             raise ParseError("Unexpected EOF in statement")
@@ -397,7 +397,7 @@ class Parser:
         struct_type = self.current()
         if struct_type is None or struct_type.type != TokenType.KEYWORD:
             raise ParseError(f"Expected struct type at {self.current()}")
-        if struct_type.value not in ("struct", "memory"):
+        if struct_type.value not in ("struct", "code"):
             raise ParseError(f"Expected struct type at {self.current()}")
         name_tok = self.next()
         if name_tok is None or name_tok.type != TokenType.IDENT:
@@ -436,8 +436,8 @@ class Parser:
             # consume ')'
             self.next()
 
-        if struct_type.value == "memory":
-            block = self.parse_memory_block()
+        if struct_type.value == "code":
+            block = self.parse_code_block()
         else:
             block = self.parse_block()
         return Struct(name_tok.position, struct_type.value, name_tok.value, params, block)
