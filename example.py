@@ -54,7 +54,7 @@ def parsePixel(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
     ctx['red'], offset = type_uint8(data, offset)
     return ctx, offset
 
-def parseFile(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
+def parseFile(data: bytes, offset: int = 0) -> tuple[dict, int]:
     ctx = {}
     ctx['file_header'], offset = parseFileHeader(data, offset, {})
     ctx['dib_header'], offset = parseDIBHeader(data, offset, {})

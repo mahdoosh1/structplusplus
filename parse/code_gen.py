@@ -179,7 +179,10 @@ class Generator:
         if isinstance(struct.block, ast_.CodeBlock):
             this_block = struct.block.code
         else:
-            this_block = f"def parse{struct.name}(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:\n"
+            if struct.name == "File":
+                this_block = f"def parse{struct.name}(data: bytes, offset: int = 0) -> tuple[dict, int]:\n"
+            else:
+                this_block = f"def parse{struct.name}(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:\n"
             this_block += self.indent_+"ctx = {}\n"
             extras = self.functions[struct.name]
             certains = []
