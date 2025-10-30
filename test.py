@@ -13,6 +13,11 @@ with open("example.py", "w") as file:
     text = gen.generate()
     file.write(text)
 
+import example
+with open("example.bmp","rb") as file:
+    data = file.read()
+data = example.parseFile(data, 0, {})[0]['pixels']['rows'][0]['pixels'][0]
+# pprint(data)
 # import json
 
 # def valid(obj, key, value):

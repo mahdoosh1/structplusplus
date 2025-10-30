@@ -33,10 +33,10 @@ def type_double(data, offset):
     obj = c_double.from_buffer_copy(data, offset)
     return obj, offset + 8
 
-def type_array(data, offset, function, array_size, function_extra_argument):
+def type_array(data, offset, function, array_size, function_args):
     arr = []
     for _ in range(array_size):
-        val, offset = function(data, offset, function_extra_argument)
+        val, offset = function(data, offset, *function_args)
         arr.append(val)
     return arr, offset
 
@@ -48,26 +48,26 @@ def size(data, offset, bytes_):
 # PRE: "endian little"
 # PRE: "noreserve "
 def parsePixel(data: bytes, offset: int, extras: dict):
-    ctx = extras or {}
+    ctx = {}
     ctx['blue'], offset = type_uint8(data, offset)
     ctx['green'], offset = type_uint8(data, offset)
     ctx['red'], offset = type_uint8(data, offset)
     return ctx, offset
 
 def parseFile(data: bytes, offset: int, extras: dict):
-    ctx = extras or {}
+    ctx = {}
     ctx['file_header'], offset = parseFileHeader(data, offset, {})
     ctx['dib_header'], offset = parseDIBHeader(data, offset, {})
     subctx = {
-        'width':ctx.get('dib_header').get('width'),
-        'height':ctx.get('dib_header').get('height'),
-        'bpp':ctx.get('dib_header').get('bpp'),
+        'width':ctx.get('dib_header').get('width').value,
+        'height':ctx.get('dib_header').get('height').value,
+        'bpp':ctx.get('dib_header').get('bpp').value,
     }
     ctx['pixels'], offset = parsePixelArray(data, offset, subctx)
     return ctx, offset
 
 def parseFileHeader(data: bytes, offset: int, extras: dict):
-    ctx = extras or {}
+    ctx = {}
     ctx['magic'], offset = size(data, offset, '2B')
     ctx['file_size'], offset = type_uint32(data, offset)
     ctx['reserved'], offset = size(data, offset, '4B')
@@ -75,23 +75,23 @@ def parseFileHeader(data: bytes, offset: int, extras: dict):
     return ctx, offset
 
 def parseDIBHeader(data: bytes, offset: int, extras: dict):
-    ctx = extras or {}
+    ctx = {}
     ctx['header_size'], offset = type_uint32(data, offset)
-    if (ctx.get('header_size')!=40):
+    if (ctx.get('header_size').value!=40):
         raise ValueError("Invalid DIB header size")
     
     ctx['width'], offset = type_uint32(data, offset)
     ctx['height'], offset = type_uint32(data, offset)
     ctx['planes'], offset = type_uint16(data, offset)
-    if (ctx.get('planes')!=1):
+    if (ctx.get('planes').value!=1):
         raise ValueError("BMP must have 1 plane")
     
     ctx['bpp'], offset = type_uint16(data, offset)
-    if (ctx.get('bpp')!=24):
+    if (ctx.get('bpp').value!=24):
         raise ValueError("Only 24-bit supported")
     
     ctx['compression'], offset = type_uint32(data, offset)
-    if (ctx.get('compression')!=0):
+    if (ctx.get('compression').value!=0):
         raise ValueError("Only uncompressed supported")
     
     ctx['image_size'], offset = type_uint32(data, offset)
@@ -102,27 +102,26 @@ def parseDIBHeader(data: bytes, offset: int, extras: dict):
     return ctx, offset
 
 def parsePixelRow(data: bytes, offset: int, extras: dict):
-    ctx = extras or {}
-    if ctx.get('width') is None:
+    ctx = {}
+    if extras.get('width') is None:
         raise ValueError("Argument for 'width' is not passed")
-    if ctx.get('bpp') is None:
+    if extras.get('bpp') is None:
         raise ValueError("Argument for 'bpp' is not passed")
-    ctx['pixels'], offset = type_array(data, offset, parsePixel, ctx.get('width'), ({},))
-    ctx['padding'], offset = type_array(data, offset, type_uint8, ((4-((ctx.get('width')*(ctx.get('bpp')/8))%4))%4), ())
+    ctx['pixels'], offset = type_array(data, offset, parsePixel, int(extras['width']), ({},))
+    ctx['padding'], offset = type_array(data, offset, type_uint8, int(((4-((extras['width']*(extras['bpp']/8))%4))%4)), ())
     return ctx, offset
 
 def parsePixelArray(data: bytes, offset: int, extras: dict):
-    ctx = extras or {}
-    if ctx.get('width') is None:
+    ctx = {}
+    if extras.get('width') is None:
         raise ValueError("Argument for 'width' is not passed")
-    if ctx.get('height') is None:
+    if extras.get('height') is None:
         raise ValueError("Argument for 'height' is not passed")
-    if ctx.get('bpp') is None:
+    if extras.get('bpp') is None:
         raise ValueError("Argument for 'bpp' is not passed")
     subctx = {
-        'width':ctx.get('width'),
-        'bpp':ctx.get('bpp'),
+        'width':extras['width'],
+        'bpp':extras['bpp'],
     }
-    ctx['rows'], offset = type_array(data, offset, parsePixelRow, ctx.get('height'), (subctx,))
+    ctx['rows'], offset = type_array(data, offset, parsePixelRow, int(extras['height']), (subctx,))
     return ctx, offset
-

@@ -50,7 +50,8 @@ class Match:
         "struct","code",
         "if","elif","else","raise",
         "reserve","noreserve","endian","front","behind","big","little",
-        "define","undef","ifdef","ifndef","endif"
+        "define","undef","ifdef","ifndef","endif",
+        "value"
     }
     OPERATORS = {
         "||","&&","<=",">=","==","!=","+","-","&","*","!","/","%","|","~","^","<",">","."

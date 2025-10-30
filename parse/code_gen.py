@@ -36,10 +36,10 @@ def type_double(data, offset):
     obj = c_double.from_buffer_copy(data, offset)
     return obj, offset + 8
 
-def type_array(data, offset, function, array_size, function_extra_argument):
+def type_array(data, offset, function, array_size, function_args):
     arr = []
     for _ in range(array_size):
-        val, offset = function(data, offset, function_extra_argument)
+        val, offset = function(data, offset, *function_args)
         arr.append(val)
     return arr, offset
 
@@ -70,7 +70,7 @@ class Generator:
     def indent(self, text, depth=1):
         return depth*self.indent_ + text.replace('\n','\n'+depth*self.indent_)
     
-    def _gen_statement(self, statement: ast_.Statement):
+    def _gen_statement(self, statement: ast_.Statement, extras = None):
         if isinstance(statement, ast_.DeclareStatement):
             this_block = ""
             callable_ = ""
@@ -83,7 +83,7 @@ class Generator:
             elif isinstance(statement.type, ast_.Identifier):
                 parameters = self.functions[statement.type.name]
                 if isinstance(statement.default, ast_.CallExpression) and len(parameters) > 0:
-                    arguments = (self._gen_expression(argument) for argument in statement.default.args)
+                    arguments = (self._gen_expression(argument, extras) for argument in statement.default.args)
                     this_block = "subctx = {\n"
                     for parameter, argument in zip(parameters, arguments):
                         this_block += f"{self.indent_}'{parameter}':{argument},\n"
@@ -102,39 +102,43 @@ class Generator:
                     call_arguments.append("")
                 call_arguments = ", ".join(call_arguments[2:]).strip()
                 call_arguments = "("+call_arguments+")"
-                size_ = self._gen_expression(statement.array_size)
-                result_ += f"type_array(data, offset, {callable_}, {size_}, {call_arguments})"
+                size_ = self._gen_expression(statement.array_size, extras)
+                result_ += f"type_array(data, offset, {callable_}, int({size_}), {call_arguments})"
             else:
                 call_arguments = ", ".join(call_arguments).strip()
                 call_arguments = "("+call_arguments+")"
                 result_ += f"{callable_}{call_arguments}"
             return result_
         elif isinstance(statement, ast_.IfThenElse):
-            return self._gen_condition(statement)
+            return self._gen_condition(statement, extras)
         elif isinstance(statement, ast_.RaiseStmt):
             return f"raise ValueError({statement.message.value})"
         print("E: ",statement)
         return ""
     
-    def _gen_expression(self, expression: ast_.Expression):
+    def _gen_expression(self, expression: ast_.Expression, extras = None):
         if isinstance(expression, ast_.Identifier):
+            if extras is not None and expression.name in extras:
+                return f"extras['{expression.name}']"
             return f"ctx.get('{expression.name}')"
         if isinstance(expression, ast_.FieldAccess):
-            return self._gen_expression(expression.target)+f".get('{expression.field}')"
+            if expression.field == "value":
+                return self._gen_expression(expression.target, extras)+".value"
+            return self._gen_expression(expression.target, extras)+f".get('{expression.field}')"
         if isinstance(expression, ast_.BinaryOp):
-            return "("+self._gen_expression(expression.left)+expression.op+self._gen_expression(expression.right)+")"
+            return "("+self._gen_expression(expression.left, extras)+expression.op+self._gen_expression(expression.right, extras)+")"
         if isinstance(expression, ast_.NumberLiteral):
             return expression.raw
         print("X: ",expression)
         return ""
     
-    def _gen_condition(self, ifthenelse: ast_.IfThenElse):
-        this_block = f"if " + self._gen_expression(ifthenelse.if_.condition)+":\n"
+    def _gen_condition(self, ifthenelse: ast_.IfThenElse, extras=None):
+        this_block = f"if " + self._gen_expression(ifthenelse.if_.condition, extras)+":\n"
         for statement in ifthenelse.if_.statements:
             this_block += f"{self.indent_}{self._gen_statement(statement)}\n"
         if len(ifthenelse.elif_) > 0:
             for elif_ in ifthenelse.elif_:
-                this_block += f"elif " + self._gen_expression(elif_.condition)+":\n"
+                this_block += f"elif " + self._gen_expression(elif_.condition, extras)+":\n"
                 for statement in elif_.statements:
                     this_block += f"{self.indent_}{self._gen_statement(statement)}\n"
         if ifthenelse.else_ is not None:
@@ -150,12 +154,13 @@ class Generator:
             this_block = struct.block.code
         else:
             this_block = f"def parse{struct.name}(data: bytes, offset: int, extras: dict):\n"
-            this_block += self.indent_+"ctx = extras or {}\n"
-            for parameter in self.functions[struct.name]:
-                this_block += f"{self.indent_}if ctx.get('{parameter}') is None:\n"
+            this_block += self.indent_+"ctx = {}\n"
+            extras = self.functions[struct.name]
+            for parameter in extras:
+                this_block += f"{self.indent_}if extras.get('{parameter}') is None:\n"
                 this_block += f"{self.indent_*2}raise ValueError(\"Argument for {repr(parameter)} is not passed\")\n"
             for statement in struct.block.statements:
-                statement = self._gen_statement(statement)
+                statement = self._gen_statement(statement, extras)
                 this_block += self.indent(statement) + "\n"
             this_block += f"{self.indent_}return ctx, offset\n"
         return this_block
