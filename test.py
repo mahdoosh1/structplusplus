@@ -18,4 +18,3 @@ with open("example.bmp","rb") as file:
     data = file.read()
 data = example.parseFile(data, 0, {})[0]['pixels']['rows'][50]
 pprint(data)
-import json
