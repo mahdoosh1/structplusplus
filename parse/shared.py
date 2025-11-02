@@ -80,24 +80,10 @@ def size(data, offset, size):
     val = data[offset-size:offset]
     return val, offset
 
-ENDIAN = 'little'
-# GLOBAL: "noreserve"
-def parseFile(data: bytes, offset: int = 0) -> tuple[dict, int]:
-    ctx = {}
-    ctx['num_messages'], offset = type_uint32(data, offset)
-    ctx['messages'], offset = type_array(data, offset, parseMessage, int(ctx['num_messages'].value), ({},))
-    return ctx, offset
-
-def parseMessage(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
-    ctx = {}
-    ctx['user_id'], offset = type_uint32(data, offset)
-    ctx['message_id'], offset = type_uint32(data, offset)
-    ctx['reply_id'], offset = type_uint32(data, offset)
-    ctx['message_length'], offset = type_uint32(data, offset)
-    ctx['message'], offset = type_array(data, offset, size, int(((ctx['message_length'].value+3)/4)), (4,))
-    return ctx, offset
-
-
+## CODE_START
+def parseFile(unused):
+    raise RuntimeError("This is a shared code")
+## CODE_END
 
 def main():
     from sys import argv

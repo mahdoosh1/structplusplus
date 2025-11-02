@@ -1,87 +1,10 @@
 from . import ast_
-
-PRECODE = """
-from ctypes import c_uint8, c_uint16, c_uint32, c_int8, c_int16, c_int32, c_float, c_double
 from ast import literal_eval
-ENDIAN = 'little'
 
-def type_uint8(data, offset):
-    if ENDIAN == 'little':
-        type_ = c_uint8.__ctype_le__ # type: ignore
-    else:
-        type_ = c_uint8.__ctype_be__ # type: ignore
-    obj = type_.from_buffer_copy(data, offset)
-    return obj, offset + 1
-
-def type_uint16(data, offset):
-    if ENDIAN == 'little':
-        type_ = c_uint16.__ctype_le__ # type: ignore
-    else:
-        type_ = c_uint16.__ctype_be__ # type: ignore
-    obj = type_.from_buffer_copy(data, offset)
-    return obj, offset + 2
-
-def type_uint32(data, offset):
-    if ENDIAN == 'little':
-        type_ = c_uint32.__ctype_le__ # type: ignore
-    else:
-        type_ = c_uint32.__ctype_be__ # type: ignore
-    obj = type_.from_buffer_copy(data, offset)
-    return obj, offset + 4
-
-def type_int8(data, offset):
-    if ENDIAN == 'little':
-        type_ = c_int8.__ctype_le__ # type: ignore
-    else:
-        type_ = c_int8.__ctype_be__ # type: ignore
-    obj = type_.from_buffer_copy(data, offset)
-    return obj, offset + 1
-
-def type_int16(data, offset):
-    if ENDIAN == 'little':
-        type_ = c_int16.__ctype_le__ # type: ignore
-    else:
-        type_ = c_int16.__ctype_be__ # type: ignore
-    obj = type_.from_buffer_copy(data, offset)
-    return obj, offset + 2
-
-def type_int32(data, offset):
-    if ENDIAN == 'little':
-        type_ = c_uint32.__ctype_le__ # type: ignore
-    else:
-        type_ = c_uint32.__ctype_be__ # type: ignore
-    obj = type_.from_buffer_copy(data, offset)
-    return obj, offset + 4
-
-def type_float(data, offset):
-    if ENDIAN == 'little':
-        type_ = c_float.__ctype_le__ # type: ignore
-    else:
-        type_ = c_float.__ctype_be__ # type: ignore
-    obj = type_.from_buffer_copy(data, offset)
-    return obj, offset + 4
-
-def type_double(data, offset):
-    if ENDIAN == 'little':
-        type_ = c_double.__ctype_le__ # type: ignore
-    else:
-        type_ = c_double.__ctype_be__ # type: ignore
-    obj = type_.from_buffer_copy(data, offset)
-    return obj, offset + 8
-
-def type_array(data, offset, function, array_size, function_args):
-    arr = []
-    for _ in range(array_size):
-        val, offset = function(data, offset, *function_args)
-        arr.append(val)
-    return arr, offset
-
-def size(data, offset, bytes_):
-    n = int(literal_eval(bytes_[:-1]))
-    val = data[offset:offset+n]
-    return val, offset + n
-
-""".lstrip()
+with open("parse/shared.py") as file:
+    CODE = file.read()
+    PRECODE = CODE[:CODE.find("## CODE_START")]
+    POSTCODE = CODE[CODE.find(i:="## CODE_END")+len(i):]
 
 class Generator:
     def __init__(self, ast_tree: ast_.Program):
@@ -110,7 +33,8 @@ class Generator:
             call_arguments = ["data", "offset"]
             if isinstance(statement.type, ast_.Size):
                 callable_ = "size"
-                call_arguments.append(f"'{statement.type.value.raw}'")
+                actual_size = int(literal_eval(statement.type.value.raw[:-1]))
+                call_arguments.append(f"{actual_size}")
             elif isinstance(statement.type, ast_.RegularSize):
                 callable_ = f"type_{statement.type.value}"
             elif isinstance(statement.type, ast_.Identifier):
@@ -251,4 +175,6 @@ class Generator:
             else:
                 raise ValueError(statement)
             self.result += "\n"
+        if self.result != PRECODE:
+            self.result += POSTCODE
         return self.result
