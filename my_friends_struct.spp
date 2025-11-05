@@ -1,0 +1,34 @@
+#endian little
+#noreserve
+
+struct File() {
+    itemCount: uint8;
+    items: Item[itemCount];
+}
+
+struct Item() {
+    info: uint8;
+    type = (info & 0x80) == 1; // 2 + 2 + 3 = 7 bits
+    if !type {
+        if info == 0 {
+            mode = py("'null'");
+        } elif info == 0x20 {
+            mode = py("'inf'");
+        } elif info == 0x40 {
+            mode = py("'false'");
+        } elif info == 0x60 {
+            mode = py("'true'");
+        } else {
+            mode = info; // what?
+        }
+    } else {
+        mode = (info & 0x7F) >> 5;   // 2 + 3 = 5 bits
+    }
+    lengthSize = 1 + (info & 0x18) >> 3;  // 3 bits
+    reserved = info & 0x04; // 0 bits remaining
+    id: uint8;
+    if type {
+        length: uint8[lengthSize]; // 1 byte per size
+        data: 1B[length];
+    }
+}

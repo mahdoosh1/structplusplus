@@ -23,6 +23,11 @@ class CallExpression(Expression):
     args: list[Identifier]
 
 @dataclass
+class FunctionCall(Expression):
+    callable: Identifier
+    arguments: list[Expression]
+
+@dataclass
 class NumberLiteral(Expression):
     raw: str
 
@@ -70,6 +75,11 @@ class DeclareStatement(Statement):
     type: Union[Size, RegularSize, Identifier]   # type name when present (like uint32)
     array_size: Optional[Expression]  # expression inside brackets or None
     default: Optional[Expression]
+
+@dataclass
+class VariableAssignment(Statement):
+    name: Identifier
+    value: Expression
 
 @dataclass
 class SpecialLocal(Statement):

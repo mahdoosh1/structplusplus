@@ -6,14 +6,20 @@ with open("parse/shared.py") as file:
     PRECODE = CODE[:CODE.find("## CODE_START")]
     POSTCODE = CODE[CODE.find(i:="## CODE_END")+len(i):]
 
+OPTABLE = {
+    "||":"or",
+    "&&": "and",
+    "!": "not",
+}
 class Generator:
-    def __init__(self, ast_tree: ast_.Program):
+    def __init__(self, ast_tree: ast_.Program, compile_time_eval: bool = True):
         self.program = ast_tree
         self.functions = {}
         self.load_functions()
         self.result = PRECODE
         self.depth = 0
         self.indent_ = "    "
+        self.cte = compile_time_eval
         
     def load_functions(self):
         program = self.program
@@ -24,7 +30,10 @@ class Generator:
                 self.functions[name] = parameters
     
     def indent(self, text, depth=1):
-        return depth*self.indent_ + text.replace('\n','\n'+depth*self.indent_)
+        indent = depth*self.indent_
+        block = text.replace('\n','\n'+depth*self.indent_)
+        result = indent + block.rstrip()
+        return result
     
     def _gen_statement(self, statement: ast_.Statement, extras, certains: list, certain = False):
         if isinstance(statement, ast_.DeclareStatement):
@@ -33,8 +42,11 @@ class Generator:
             call_arguments = ["data", "offset"]
             if isinstance(statement.type, ast_.Size):
                 callable_ = "size"
-                actual_size = int(literal_eval(statement.type.value.raw[:-1]))
-                call_arguments.append(f"{actual_size}")
+                if self.cte:
+                    actual_size = str(int(literal_eval(statement.type.value.raw[:-1])))
+                else:
+                    actual_size = f"int(literal_eval({repr(statement.type.value.raw[:-1])}))"
+                call_arguments.append(actual_size)
             elif isinstance(statement.type, ast_.RegularSize):
                 callable_ = f"type_{statement.type.value}"
             elif isinstance(statement.type, ast_.Identifier):
@@ -71,7 +83,9 @@ class Generator:
         elif isinstance(statement, ast_.IfThenElse):
             return self._gen_condition(statement, extras, certains)
         elif isinstance(statement, ast_.RaiseStmt):
-            return f"raise ValueError({statement.message.value})"
+            return f"raise ValueError({self._gen_expression(statement.message)})"
+        elif isinstance(statement, ast_.VariableAssignment):
+            return f"ctx['{statement.name.name}'] = {self._gen_expression(statement.value, extras, certains)}"
         print("E: ",statement)
         return ""
     
@@ -104,7 +118,15 @@ class Generator:
         if isinstance(expression, ast_.BinaryOp):
             left = self._gen_expression(expression.left, extras, certains)
             right = self._gen_expression(expression.right, extras, certains)
-            result = "("+left+expression.op+right+")"
+            op = OPTABLE.get(expression.op, expression.op)
+            result = f"({left} {op} {right})"
+            if return_certain:
+                return result, False # type: ignore
+            return result
+        if isinstance(expression, ast_.UnaryOp):
+            exp = self._gen_expression(expression.operand)
+            op = OPTABLE.get(expression.op, expression.op)
+            result = f"({op} {exp})"
             if return_certain:
                 return result, False # type: ignore
             return result
@@ -112,13 +134,38 @@ class Generator:
             if return_certain:
                 return expression.raw, False # type: ignore
             return expression.raw
+        if isinstance(expression, ast_.FunctionCall):
+            if expression.callable == "py":
+                if len(expression.arguments) == 1:
+                    string = self._gen_expression(expression.arguments[0])
+                    if self.cte:
+                        # first is for the string
+                        # second is for the value
+                        result = str(literal_eval(string))
+                    else:
+                        # already an string
+                        result = f"literal_eval({string})"
+                    if return_certain:
+                        return result, False # type: ignore
+                    return result
+            args = ", ".join(map(self._gen_expression, expression.arguments))
+            result = f"{expression.callable}({args})"
+            if return_certain:
+                return result, False # type: ignore
+            return result
+        if isinstance(expression, ast_.StringLiteral):
+            result = expression.value
+            if return_certain:
+                return result, False # type: ignore
+            return result
         print("X: ",expression)
         return ""
     
     def _gen_condition(self, ifthenelse: ast_.IfThenElse, extras, certains: list):
         this_block = f"if " + self._gen_expression(ifthenelse.if_.condition, extras, certains)+":\n"
         for statement in ifthenelse.if_.statements:
-            this_block += f"{self.indent_}{self._gen_statement(statement, extras, certains, False)}\n"
+            this_block += self.indent(self._gen_statement(statement, extras, certains, False))
+            this_block += "\n"
         if len(ifthenelse.elif_) > 0:
             for elif_ in ifthenelse.elif_:
                 this_block += f"elif " + self._gen_expression(elif_.condition, extras, certains)+":\n"
@@ -145,7 +192,7 @@ class Generator:
             certains = []
             for parameter in extras:
                 this_block += f"{self.indent_}if extras.get('{parameter}') is None:\n"
-                this_block += f"{self.indent_*2}raise ValueError(\"Argument for {repr(parameter)} is not passed\")\n"
+                this_block += f"{self.indent_*2}raise ValueError(\"Argument for {self._gen_expression(parameter)} is not passed\")\n"
             for statement in struct.block.statements:
                 statement = self._gen_statement(statement, extras, certains, True)
                 this_block += self.indent(statement) + "\n"

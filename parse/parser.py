@@ -65,15 +65,16 @@ class Parser:
             cur = self.current()
             if cur is None:
                 break
-            if cur.type != TokenType.OPERATOR:
+            if cur.type == TokenType.OPERATOR:
+                prec = self.get_precedence(cur.value)
+                if prec < min_prec:
+                    break
+                op_tok = cur
+                self.next()
+                right = self.parse_expression(prec + 1)
+                left = BinaryOp(left.pos, left, op_tok.value, right)
+            else:
                 break
-            prec = self.get_precedence(cur.value)
-            if prec < min_prec:
-                break
-            op_tok = cur
-            self.next()
-            right = self.parse_expression(prec + 1)
-            left = BinaryOp(left.pos, left, op_tok.value, right)
         return left
 
     def parse_unary(self):
@@ -85,6 +86,21 @@ class Parser:
                     self.next()
                     operand = self.parse_unary()
                     return UnaryOp(op_tok.position, op_tok.value, operand)
+            elif cur.type == TokenType.IDENT:
+                if (n:=self.peek()) is not None:
+                    if n.type == TokenType.PAREN_LEFT:
+                        name = cur
+                        self.next() # cur = "("
+                        cur = self.next() # cur = "..."
+                        args = []
+                        while cur and cur.type != TokenType.PAREN_RIGHT:
+                            expr = self.parse_expression()
+                            cur = self.current()
+                            args.append(expr)
+                        if not cur:
+                            raise ParseError(f"expected ')' but got EOF at {name.position}")
+                        self.next()
+                        return FunctionCall(name.position, name.value, args)
         return self.parse_atom()
 
     def parse_atom(self):
@@ -143,11 +159,12 @@ class Parser:
         prec_table = {
             "||": 1, "&&": 2,
             "|": 3, "^": 4, "&": 5,
-            "==": 6, "!=": 6,
-            "<": 7, "<=": 7, ">": 7, ">=": 7,
-            "+": 8, "-": 8,
-            "*": 9, "/": 9, "%": 9,
-            ".": 10
+            "<<": 6, ">>": 6,
+            "==": 7, "!=": 7,
+            "<": 8, "<=": 8, ">": 8, ">=": 8,
+            "+": 9, "-": 9,
+            "*": 10, "/": 10, "%": 10,
+            ".": 11
         }
         if op in prec_table:
             return prec_table[op]
@@ -251,11 +268,35 @@ class Parser:
                 return self.parse_if()
 
         if tok.type == TokenType.IDENT:
+            if self.safe_peek().type == TokenType.EQUALS:
+                return self.parse_assignment()
             return self.parse_declaration()
         if tok.type == TokenType.HASHTAG:
             return self.parse_preprocessor()
 
         raise ParseError(f"Unexpected token {tok.value} in statement at {tok.position}")
+
+    def parse_assignment(self):
+        name_tok = self.current()
+        if name_tok is None:
+            raise ParseError(f"Unexpected EOF when parsing variable assignment")
+        if name_tok.type != TokenType.IDENT:
+            raise ParseError(f"Expected variable identifier at {name_tok.position}")
+        self.expect(TokenType.EQUALS)
+        self.next()
+        self.next()
+        value = self.parse_expression()
+        if (o:=self.current()) is None:
+            raise ParseError(f"Expected semicolon after variable assignment at {name_tok.position}")
+        if o.type != TokenType.SEMICOLON:
+            print(o)
+            raise ParseError(f"Expected semicolon after variable assignment at {o.position}")
+        self.next()
+        return VariableAssignment(
+            name_tok.position,
+            Identifier(name_tok.position, name_tok.value),
+            value
+        )
 
     def parse_declaration(self):
         name_tok = self.current()
@@ -347,19 +388,7 @@ class Parser:
         # consume 'if'
         self.next()
 
-        cur = self.current()
-        if cur is None or cur.type != TokenType.PAREN_LEFT:
-            raise ParseError(f"Expected '(' after if at {if_tok.position}")
-        # consume '('
-        self.next()
-
         cond = self.parse_expression()
-
-        cur = self.current()
-        if cur is None or cur.type != TokenType.PAREN_RIGHT:
-            raise ParseError(f"Expected ')' after if condition at {if_tok.position}")
-        # consume ')'
-        self.next()
 
         if_block = self.parse_block()
         if_block_pos = if_block.statements[0].pos if len(if_block.statements) > 0 else if_tok.position
@@ -378,17 +407,7 @@ class Parser:
             # consume 'elif'
             self.next()
 
-            cur = self.current()
-            if cur is None or cur.type != TokenType.PAREN_LEFT:
-                raise ParseError(f"Expected '(' after elif at {elif_tok.position}")
-            self.next()
-
             cond2 = self.parse_expression()
-
-            cur = self.current()
-            if cur is None or cur.type != TokenType.PAREN_RIGHT:
-                raise ParseError(f"Expected ')' after elif condition at {elif_tok.position}")
-            self.next()
 
             block = self.parse_block()
             block_pos = block.statements[0].pos if len(block.statements) > 0 else elif_tok.position

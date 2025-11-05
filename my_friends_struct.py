@@ -81,10 +81,40 @@ def size(data, offset, size):
     val = data[offset-size:offset]
     return val, offset
 
-## CODE_START
-def parseFile(unused):
-    raise RuntimeError("This is a shared code")
-## CODE_END
+ENDIAN = 'little'
+# GLOBAL: "noreserve"
+def parseFile(data: bytes, offset: int = 0) -> tuple[dict, int]:
+    ctx = {}
+    ctx['itemCount'], offset = type_uint8(data, offset)
+    ctx['items'], offset = type_array(data, offset, parseItem, int(ctx['itemCount']), ({},))
+    return ctx, offset
+
+def parseItem(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
+    ctx = {}
+    ctx['info'], offset = type_uint8(data, offset)
+    ctx['type'] = ((ctx['info'] & 0x80) == 1)
+    if (not ctx.get('type')):
+        if (ctx['info'] == 0):
+            ctx['mode'] = 'null'
+        elif (ctx['info'] == 0x20):
+            ctx['mode'] = 'inf'
+        elif (ctx['info'] == 0x40):
+            ctx['mode'] = 'false'
+        elif (ctx['info'] == 0x60):
+            ctx['mode'] = 'true'
+        else:
+            ctx['mode'] = ctx['info']
+    else:
+        ctx['mode'] = ((ctx['info'] & 0x7F) >> 5)
+    ctx['lengthSize'] = ((1 + (ctx['info'] & 0x18)) >> 3)
+    ctx['reserved'] = (ctx['info'] & 0x04)
+    ctx['id'], offset = type_uint8(data, offset)
+    if ctx.get('type'):
+        ctx['length'], offset = type_array(data, offset, type_uint8, int(ctx.get('lengthSize')), ())
+        ctx['data'], offset = type_array(data, offset, size, int(ctx.get('length')), (1,))
+    return ctx, offset
+
+
 
 def main():
     from sys import argv

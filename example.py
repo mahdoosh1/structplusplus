@@ -1,5 +1,6 @@
 from ctypes import c_uint8, c_uint16, c_uint32, c_int8, c_int16, c_int32, c_float, c_double
 from ast import literal_eval
+
 ENDIAN = 'little'
 
 def type_uint8(data, offset):
@@ -73,10 +74,12 @@ def type_array(data, offset, function, array_size, function_args):
         arr.append(val)
     return arr, offset
 
-def size(data, offset, bytes_):
-    n = int(literal_eval(bytes_[:-1]))
-    val = data[offset:offset+n]
-    return val, offset + n
+def size(data, offset, size):
+    offset += size
+    if offset > len(data)-1:
+        raise ValueError(f"Offset too big: {offset} (maximum {len(data)-1})")
+    val = data[offset-size:offset]
+    return val, offset
 
 ENDIAN = 'little'
 # GLOBAL: "noreserve"
@@ -101,32 +104,28 @@ def parseFile(data: bytes, offset: int = 0) -> tuple[dict, int]:
 
 def parseFileHeader(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
     ctx = {}
-    ctx['magic'], offset = size(data, offset, '2B')
+    ctx['magic'], offset = size(data, offset, 2)
     ctx['file_size'], offset = type_uint32(data, offset)
-    ctx['reserved'], offset = size(data, offset, '4B')
+    ctx['reserved'], offset = size(data, offset, 4)
     ctx['pixel_offset'], offset = type_uint32(data, offset)
     return ctx, offset
 
 def parseDIBHeader(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
     ctx = {}
     ctx['header_size'], offset = type_uint32(data, offset)
-    if (ctx['header_size'].value!=40):
+    if (ctx['header_size'].value != 40):
         raise ValueError("Invalid DIB header size")
-    
     ctx['width'], offset = type_uint32(data, offset)
     ctx['height'], offset = type_uint32(data, offset)
     ctx['planes'], offset = type_uint16(data, offset)
-    if (ctx['planes'].value!=1):
+    if (ctx['planes'].value != 1):
         raise ValueError("BMP must have 1 plane")
-    
     ctx['bpp'], offset = type_uint16(data, offset)
-    if (ctx['bpp'].value!=24):
+    if (ctx['bpp'].value != 24):
         raise ValueError("Only 24-bit supported")
-    
     ctx['compression'], offset = type_uint32(data, offset)
-    if (ctx['compression'].value!=0):
+    if (ctx['compression'].value != 0):
         raise ValueError("Only uncompressed supported")
-    
     ctx['image_size'], offset = type_uint32(data, offset)
     ctx['x_ppm'], offset = type_uint32(data, offset)
     ctx['y_ppm'], offset = type_uint32(data, offset)
@@ -137,21 +136,21 @@ def parseDIBHeader(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
 def parsePixelRow(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
     ctx = {}
     if extras.get('width') is None:
-        raise ValueError("Argument for 'width' is not passed")
+        raise ValueError("Argument for  is not passed")
     if extras.get('bpp') is None:
-        raise ValueError("Argument for 'bpp' is not passed")
+        raise ValueError("Argument for  is not passed")
     ctx['pixels'], offset = type_array(data, offset, parsePixel, int(extras['width']), ({},))
-    ctx['padding'], offset = type_array(data, offset, type_uint8, int(((4-((extras['width']*(extras['bpp']/8))%4))%4)), ())
+    ctx['padding'], offset = type_array(data, offset, type_uint8, int(((4 - ((extras['width'] * (extras['bpp'] / 8)) % 4)) % 4)), ())
     return ctx, offset
 
 def parsePixelArray(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
     ctx = {}
     if extras.get('width') is None:
-        raise ValueError("Argument for 'width' is not passed")
+        raise ValueError("Argument for  is not passed")
     if extras.get('height') is None:
-        raise ValueError("Argument for 'height' is not passed")
+        raise ValueError("Argument for  is not passed")
     if extras.get('bpp') is None:
-        raise ValueError("Argument for 'bpp' is not passed")
+        raise ValueError("Argument for  is not passed")
     sub_ctx = {
         'width':extras['width'],
         'bpp':extras['bpp'],
@@ -159,3 +158,22 @@ def parsePixelArray(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
     ctx['rows'], offset = type_array(data, offset, parsePixelRow, int(extras['height']), (sub_ctx,))
     return ctx, offset
 
+
+
+def main():
+    from sys import argv
+    if len(argv) <= 1:
+        return
+    test_file = argv[1]
+    result = None
+    if len(argv) > 2:
+        result = argv[2]
+    with open(test_file,"rb") as file:
+        data = file.read()
+    parsed = parseFile(data)
+    if result:
+        with open(result, "w") as file:
+            file.write(str(parsed))
+
+if __name__ == '__main__':
+    main()
