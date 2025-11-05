@@ -207,14 +207,16 @@ class Generator:
                 self.result += this_block
             elif isinstance(statement, ast_.SpecialGlobal):
                 if statement.name == "endian":
-                    this_block = f"ENDIAN = '{statement.arg}'"
-                elif statement.arg is not None:
-                    this_block = f"# GLOBAL: \"{statement.name} {statement.arg}\""
+                    this_block = f"ENDIAN = '{statement.args[0]}'"
+                elif statement.args is not None:
+                    args = " ".join(statement.args)
+                    this_block = f"# GLOBAL: \"{statement.name} {args}\""
                 else:
                     this_block = f"# GLOBAL: \"{statement.name}\""
                 self.result += this_block
             elif isinstance(statement, ast_.SpecialLocal):
-                this_block = f"# LOCAL: \"{statement.name} {statement.arg}\""
+                args = " ".join(statement.args)
+                this_block = f"# LOCAL: \"{statement.name} {args}\""
                 self.result += this_block
             elif isinstance(statement, ast_.Struct):
                 this_block = self._gen_struct(statement)

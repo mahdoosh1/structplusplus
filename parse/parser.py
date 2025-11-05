@@ -249,24 +249,12 @@ class Parser:
                 self.next()
                 return RaiseStmt(str_tok.position, StringLiteral(str_tok.position, str_tok.value))
 
-            if tok.value in ("reserve", "noreserve", "endian"):
-                # consume keyword
-                self.next()
-                arg = None
-                cur = self.current()
-                if cur is not None and cur.type == TokenType.KEYWORD:
-                    arg = cur.value
-                    self.next()
-                # expect semicolon
-                semi = self.current()
-                if semi is None or semi.type != TokenType.SEMICOLON:
-                    raise ParseError(f"Expected ';' after special local at {tok.position}")
-                self.next()
-                return SpecialLocal(tok.position, tok.value, arg)
-
             if tok.value == "if":
                 return self.parse_if()
 
+        if tok.type == TokenType.ATSIGN:
+            if tok.value in ("reserve", "noreserve", "endian"):
+                return self.parse_special_local()
         if tok.type == TokenType.IDENT:
             if self.safe_peek().type == TokenType.EQUALS:
                 return self.parse_assignment()
@@ -491,8 +479,6 @@ class Parser:
             if cur is None:
                 break
             if cur.position[0] != line:
-                if name_tok.type == TokenType.SPECIAL:
-                    args.append(None)
                 break
             if name_tok.type == TokenType.SPECIAL:
                 if cur.type != TokenType.KEYWORD:
@@ -500,13 +486,13 @@ class Parser:
             args.append(cur.value)
             self.next()
         if name_tok.type == TokenType.SPECIAL:
-            return SpecialGlobal(name_tok.position, name_tok.value, args[0])
+            return SpecialGlobal(name_tok.position, name_tok.value, args)
         return Preprocessor(name_tok.value, args)
 
-    def parse_special_global(self):
+    def parse_special_local(self):
         cur = self.current()
         if cur is None or cur.type != TokenType.ATSIGN:
-            raise ParseError(f"Expected '@' special global at {cur}")
+            raise ParseError(f"Expected '@' at {cur}")
         # consume '@'
         self.next()
         name_tok = self.current()
@@ -514,12 +500,12 @@ class Parser:
             raise ParseError(f"Expected keyword after '@' at {cur.position}")
         # consume keyword
         self.next()
-        arg = None
+        args = []
         cur = self.current()
         if cur is not None and cur.type == TokenType.KEYWORD:
-            arg = cur.value
+            args.append(cur.value)
             self.next()
-        return SpecialGlobal(name_tok.position, name_tok.value, arg)
+        return SpecialLocal(name_tok.position, name_tok.value, args)
 
     def parse_program(self):
         items = []
@@ -531,7 +517,7 @@ class Parser:
                 items.append(self.parse_preprocessor())
                 continue
             if cur.type == TokenType.ATSIGN:
-                items.append(self.parse_special_global())
+                items.append(self.parse_special_local())
                 continue
             if cur.type == TokenType.KEYWORD:
                 items.append(self.parse_struct())

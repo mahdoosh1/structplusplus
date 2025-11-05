@@ -82,7 +82,7 @@ def size(data, offset, size):
     return val, offset
 
 ENDIAN = 'little'
-# GLOBAL: "noreserve"
+# GLOBAL: "noreserve "
 def parsePixel(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
     ctx = {}
     ctx['blue'], offset = type_uint8(data, offset)

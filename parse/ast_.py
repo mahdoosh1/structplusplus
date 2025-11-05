@@ -84,7 +84,7 @@ class VariableAssignment(Statement):
 @dataclass
 class SpecialLocal(Statement):
     name: str   # "reserve" / "noreserve" / "endian"
-    arg: Optional[str]   # "front"/"behind"/"big"/"little" or None
+    args: list[str]   # "front"/"behind"/"big"/"little" or None
 
 # --- condition / flow ---
 @dataclass
@@ -113,7 +113,7 @@ class Preprocessor:
 @dataclass
 class SpecialGlobal(Statement):
     name: str
-    arg: Optional[str]
+    args: list[str]
 
 # --- struct / top-level ---
 @dataclass

@@ -1,5 +1,6 @@
 #endian little
 #noreserve
+
 struct Pixel() {
     blue: uint8;
     green: uint8;
