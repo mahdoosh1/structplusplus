@@ -83,7 +83,7 @@ def size(data, offset, size):
 
 ## CODE_START
 def parseFile(unused):
-    raise RuntimeError("This is a shared code")
+    raise RuntimeError("This is pre-computed code")
 ## CODE_END
 
 def main():
