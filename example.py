@@ -136,9 +136,9 @@ def parseDIBHeader(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
 def parsePixelRow(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
     ctx = {}
     if extras.get('width') is None:
-        raise ValueError("Argument for  is not passed")
+        raise ValueError("Argument for width is not passed")
     if extras.get('bpp') is None:
-        raise ValueError("Argument for  is not passed")
+        raise ValueError("Argument for bpp is not passed")
     ctx['pixels'], offset = type_array(data, offset, parsePixel, int(extras['width']), ({},))
     ctx['padding'], offset = type_array(data, offset, type_uint8, int(((4 - ((extras['width'] * (extras['bpp'] / 8)) % 4)) % 4)), ())
     return ctx, offset
@@ -146,11 +146,11 @@ def parsePixelRow(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
 def parsePixelArray(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
     ctx = {}
     if extras.get('width') is None:
-        raise ValueError("Argument for  is not passed")
+        raise ValueError("Argument for width is not passed")
     if extras.get('height') is None:
-        raise ValueError("Argument for  is not passed")
+        raise ValueError("Argument for height is not passed")
     if extras.get('bpp') is None:
-        raise ValueError("Argument for  is not passed")
+        raise ValueError("Argument for bpp is not passed")
     sub_ctx = {
         'width':extras['width'],
         'bpp':extras['bpp'],

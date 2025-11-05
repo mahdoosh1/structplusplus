@@ -192,7 +192,7 @@ class Generator:
             certains = []
             for parameter in extras:
                 this_block += f"{self.indent_}if extras.get('{parameter}') is None:\n"
-                this_block += f"{self.indent_*2}raise ValueError(\"Argument for {self._gen_expression(parameter)} is not passed\")\n"
+                this_block += f"{self.indent_*2}raise ValueError(\"Argument for {parameter} is not passed\")\n"
             for statement in struct.block.statements:
                 statement = self._gen_statement(statement, extras, certains, True)
                 this_block += self.indent(statement) + "\n"
