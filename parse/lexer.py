@@ -174,7 +174,7 @@ def lex(code: str) -> list[Token]:
                     raise SyntaxError(f"Unexpected character {char!r} at {pos}")
                 
                 add_token(token_type, char)
-                column += len(char)
+                column += 1
                 index += 1
                 matched = True
     return tokens

@@ -13,12 +13,12 @@ class Parser:
         if oindex >= len(self.tokens):
             return None, oindex
         index = oindex
-        token = self.tokens[index]
-        while w and token.type == TokenType.WHITESPACE and index < len(self.tokens):
+        token = self.tokens[index] # type: Token
+        while w and (token.type == TokenType.WHITESPACE) and (index < len(self.tokens)):
             index += 1
             if index >= len(self.tokens):
                 return None, oindex
-            token = self.tokens[index]
+            token = self.tokens[index] # type: Token
         return token, index
     def next(self):
         self.index += 1
@@ -89,7 +89,7 @@ class Parser:
             elif cur.type == TokenType.IDENT:
                 if (n:=self.peek()) is not None:
                     if n.type == TokenType.PAREN_LEFT:
-                        name = cur
+                        name = Identifier(cur.position, cur.value)
                         self.next() # cur = "("
                         cur = self.next() # cur = "..."
                         args = []
@@ -98,9 +98,9 @@ class Parser:
                             cur = self.current()
                             args.append(expr)
                         if not cur:
-                            raise ParseError(f"expected ')' but got EOF at {name.position}")
+                            raise ParseError(f"expected ')' but got EOF at {name.pos}")
                         self.next()
-                        return FunctionCall(name.position, name.value, args)
+                        return FunctionCall(name.pos, name, args)
         return self.parse_atom()
 
     def parse_atom(self):
@@ -171,23 +171,25 @@ class Parser:
         return 0
 
     # --- block parsing ---
-    def parse_code_block(self):
+    def parse_code(self):
         cur = self.current()
         if cur is None or cur.type != TokenType.BRACE_LEFT:
             raise ParseError(f"Expected '{{' at start of block, got {cur}")
         # consume '{'
-        self.next()
+        self.index += 1
+        
         codes = []
         while True:
             cur = self.current()
             if cur is None:
                 raise ParseError("Unterminated block (expected '}')")
             if cur.type == TokenType.BRACE_RIGHT:
+                self.next()
                 break
             text = self.parse_code_statement()
             codes.append(text)
-        self.next()
-        return CodeBlock(cur.position, ''.join(codes))
+            self.index += 1
+        return Code(cur.position, ''.join(codes))
     def parse_block(self):
         cur = self.current()
         if cur is None or cur.type != TokenType.BRACE_LEFT:
@@ -211,24 +213,23 @@ class Parser:
 
     # --- statement parsing ---
     def parse_code_statement(self):
-        tok = self._get_token(self.index, False)[0]
-        if tok is None:
-            raise ParseError("Unexpected EOF in statement")
-
         depth = 0
         output = ""
+        
         while True:
-            if tok.type == TokenType.BRACE_RIGHT and depth == 0:
-                break
-            elif tok.type == TokenType.BRACE_LEFT:
-                depth += 1
-            if tok.type == TokenType.BRACE_RIGHT:
-                depth -= 1
-            output += tok.value
-            self.index += 1
             tok = self._get_token(self.index, False)[0]
             if tok is None:
                 break
+            if tok.type == TokenType.BRACE_RIGHT:
+                if depth == 0:
+                    break
+                depth -= 1
+            elif tok.type == TokenType.BRACE_LEFT:
+                depth += 1
+            output += tok.value
+            self.index += 1
+        self.index -= 1
+        
         return output
     def parse_statement(self):
         tok = self.current()
@@ -419,6 +420,9 @@ class Parser:
         if struct_type.value not in ("struct", "code"):
             raise ParseError(f"Expected struct type at {self.current()}")
         name_tok = self.next()
+        if struct_type.value == "code":
+            code = self.parse_code()
+            return code
         if name_tok is None or name_tok.type != TokenType.IDENT:
             raise ParseError(f"Expected struct name identifier at {self.current()}")
         # consume name
@@ -455,10 +459,7 @@ class Parser:
             # consume ')'
             self.next()
 
-        if struct_type.value == "code":
-            block = self.parse_code_block()
-        else:
-            block = self.parse_block()
+        block = self.parse_block()
         return Struct(name_tok.position, name_tok.value, params, block)
 
     def parse_preprocessor(self):

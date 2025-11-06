@@ -91,7 +91,7 @@ class SpecialLocal(Statement):
 class Block(Statement):
     statements: list[Union[Statement, 'ConditionalBlock']]
 @dataclass
-class CodeBlock(Statement):
+class Code(Statement):
     code: str
 
 @dataclass
@@ -120,8 +120,8 @@ class SpecialGlobal(Statement):
 class Struct(Statement):
     name: str
     params: list[Identifier]
-    block: Union[Block, CodeBlock]
+    block: Block
 
 @dataclass
 class Program:
-    items: list[Union[Struct, Preprocessor, SpecialGlobal]]
+    items: list[Union[Struct, Preprocessor, SpecialGlobal, Code]]

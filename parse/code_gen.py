@@ -180,23 +180,20 @@ class Generator:
         return this_block
     
     def _gen_struct(self, struct: ast_.Struct):
-        if isinstance(struct.block, ast_.CodeBlock):
-            this_block = struct.block.code
+        if struct.name == "File":
+            this_block = f"def parse{struct.name}(data: bytes, offset: int = 0) -> tuple[dict, int]:\n"
         else:
-            if struct.name == "File":
-                this_block = f"def parse{struct.name}(data: bytes, offset: int = 0) -> tuple[dict, int]:\n"
-            else:
-                this_block = f"def parse{struct.name}(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:\n"
-            this_block += self.indent_+"ctx = {}\n"
-            extras = self.functions[struct.name]
-            certains = []
-            for parameter in extras:
-                this_block += f"{self.indent_}if extras.get('{parameter}') is None:\n"
-                this_block += f"{self.indent_*2}raise ValueError(\"Argument for {parameter} is not passed\")\n"
-            for statement in struct.block.statements:
-                statement = self._gen_statement(statement, extras, certains, True)
-                this_block += self.indent(statement) + "\n"
-            this_block += f"{self.indent_}return ctx, offset\n"
+            this_block = f"def parse{struct.name}(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:\n"
+        this_block += self.indent_+"ctx = {}\n"
+        extras = self.functions[struct.name]
+        certains = []
+        for parameter in extras:
+            this_block += f"{self.indent_}if extras.get('{parameter}') is None:\n"
+            this_block += f"{self.indent_*2}raise ValueError(\"Argument for {parameter} is not passed\")\n"
+        for statement in struct.block.statements:
+            statement = self._gen_statement(statement, extras, certains, True)
+            this_block += self.indent(statement) + "\n"
+        this_block += f"{self.indent_}return ctx, offset\n"
         return this_block
     
     def generate(self):
@@ -220,6 +217,9 @@ class Generator:
                 self.result += this_block
             elif isinstance(statement, ast_.Struct):
                 this_block = self._gen_struct(statement)
+                self.result += this_block
+            elif isinstance(statement, ast_.Code):
+                this_block = statement.code
                 self.result += this_block
             else:
                 raise ValueError(statement)
