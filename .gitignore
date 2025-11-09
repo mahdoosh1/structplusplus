@@ -5,4 +5,5 @@ __pycache__
 
 # Specific
 # example.py
-# test/*
+/test/*
+!/test/example.spp
