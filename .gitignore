@@ -7,3 +7,5 @@ __pycache__
 # example.py
 /test/*
 !/test/example.spp
+!/test/example.py
+!/test/example.bmp
