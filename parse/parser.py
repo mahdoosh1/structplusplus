@@ -1,64 +1,91 @@
+from types import NoneType
 from .ast_ import *
 from .lexer import Token, TokenType
 
 class ParseError(Exception):
     pass
 
-
 class Parser:
-    def __init__(self, tokens: list[Token]):
+    def __init__(self, filename: str, tokens: list[Token]):
+        self.filename = filename
         self.tokens = tokens
         self.index = 0
-    def _get_token(self, oindex, w=True):
+        
+    def _get_token(self, oindex, w=True) -> tuple[Optional[Token], int]:
         if oindex >= len(self.tokens):
             return None, oindex
         index = oindex
-        token = self.tokens[index] # type: Token
+        token = self.tokens[index]
         while w and (token.type == TokenType.WHITESPACE) and (index < len(self.tokens)):
             index += 1
             if index >= len(self.tokens):
-                return None, oindex
-            token = self.tokens[index] # type: Token
+                return None, index
+            token = self.tokens[index]
         return token, index
-    def next(self):
+    
+    def _position(self):
+        if self.index >= len(self.tokens):
+            t = self.tokens[-1]
+        else:
+            t = self.tokens[self.index]
+        return f"(at :{t.position[0]}:{t.position[1]})"
+    
+    def _raise(self, exception: Exception):
+        new_args = (
+            self.filename+":",
+            *exception.args,
+            self._position()
+        )
+        new_exception = exception.__class__(new_args)
+        raise new_exception
+
+    def next(self) -> Optional[Token]:
         self.index += 1
-        if self.index < len(self.tokens):
-            r, self.index = self._get_token(self.index)
-            return r
-        return None
+        r, i = self._get_token(self.index)
+        
+        if r: self.index = i
+        else: self.index = i-1
+        
+        return r
 
-    def peek(self):
-        if self.index+1 < len(self.tokens):
-            return self._get_token(self.index + 1)[0]
-        return None
-
-    def safe_peek(self):
-        if self.index+1 < len(self.tokens):
-            r = self._get_token(self.index + 1)[0]
-            if r: return r
-        raise EOFError("Code ended too early.")
-
-    def expect(self, *values):
-        x = self.peek()
-        if x is None:
-            raise EOFError(f"Code ended too early. Expected any of {values}")
-        if x.type in values:
-            return x
-        raise ParseError(f"Expected any of {values}. got {x.type} (at :{x.position[0]}:{x.position[1]})")
-
+    def peek(self) -> Optional[Token]:
+        return self._get_token(self.index+1)[0]
+    
     def current(self):
-        if self.index < len(self.tokens):
-            return self._get_token(self.index)[0]
-        return None
+        return self._get_token(self.index)[0]
+    
+    def safe_next(self):
+        r = self.next()
+        if r: return r
+        self._raise(EOFError("Code ended too early."))
+    
+    def safe_peek(self):
+        r = self.peek()
+        if r: return r
+        self._raise(EOFError("Code ended too early."))
+    
+    def safe_current(self):
+        r = self.current()
+        if r: return r
+        self._raise(EOFError("Code ended too early."))
+    
+    def expect_current(self, *values):
+        n = self.current()
+        if n is None:
+            self._raise(EOFError(f"Code ended too early. Expected any of {values}"))
+        if n.type not in values:
+            self._raise(ParseError(f"Expected any of {values}. got {n.type}"))
+        self.next()
+        return n
+    
+    def expect_next(self, *values):
+        n = self.next()
+        if n is None:
+            self._raise(EOFError(f"Code ended too early. Expected any of {values}"))
+        if n.type not in values:
+            self._raise(ParseError(f"Expected any of {values}. got {n.type}"))
+        return n
 
-    # changed: match now checks peek token
-    def match(self, *types):
-        p = self.peek()
-        if p is None:
-            return False
-        return p.type in types
-
-    # --- expression parsing ---
     def parse_expression(self, min_prec=0):
         left = self.parse_unary()
         while True:
@@ -66,6 +93,16 @@ class Parser:
             if cur is None:
                 break
             if cur.type == TokenType.OPERATOR:
+                while cur.type == TokenType.OPERATOR and cur.value == ".":
+                    field = self.safe_next()
+                    if field.type not in (TokenType.IDENT, TokenType.KEYWORD):
+                        self._raise(ParseError(f"Expected field after '.'"))
+                    if field.type == TokenType.KEYWORD and field.value != "value":
+                        self._raise(ParseError(f"Expected field after '.'"))
+                    cur = self.safe_next()
+                    left = FieldAccess(cur.position, left, field.value)
+                if cur.type != TokenType.OPERATOR:
+                    break
                 prec = self.get_precedence(cur.value)
                 if prec < min_prec:
                     break
@@ -76,84 +113,71 @@ class Parser:
             else:
                 break
         return left
+    
+    def parse_arrays(self, terminator, return_cur=False, valid_types=None) -> list[Expression]:
+        cur = self.safe_current()
+        array = []
+        while cur.type != terminator:
+            array.append(self.parse_expression())
+            cur = self.safe_current()
+            if cur.type != terminator:
+                self.expect_current(TokenType.COMMA)
+            if valid_types is not None:
+                found = False
+                for valid_type in valid_types:
+                    if isinstance(array[-1], valid_type):
+                        found = True
+                        continue
+                if not found:
+                    self._raise(ParseError(f"Valid types are {valid_types}, got {array[-1].__class__}"))
+        if return_cur:
+            return array, cur # type: ignore
+        return array
 
     def parse_unary(self):
-        cur = self.current()
-        if cur is not None:
-            if cur.type == TokenType.OPERATOR:
-                if cur.value in ("+", "-", "!", "~"):
-                    op_tok = cur
-                    self.next()
-                    operand = self.parse_unary()
-                    return UnaryOp(op_tok.position, op_tok.value, operand)
-            elif cur.type == TokenType.IDENT:
-                if (n:=self.peek()) is not None:
-                    if n.type == TokenType.PAREN_LEFT:
-                        name = Identifier(cur.position, cur.value)
-                        self.next() # cur = "("
-                        cur = self.next() # cur = "..."
-                        args = []
-                        while cur and cur.type != TokenType.PAREN_RIGHT:
-                            expr = self.parse_expression()
-                            cur = self.current()
-                            args.append(expr)
-                        if not cur:
-                            raise ParseError(f"expected ')' but got EOF at {name.pos}")
-                        self.next()
-                        return FunctionCall(name.pos, name, args)
-        return self.parse_atom()
-
-    def parse_atom(self):
-        tok = self.current()
-        if tok is None:
-            raise ParseError("Unexpected EOF in expression")
-
-        if tok.type == TokenType.IDENT:
-            self.next()
-            node = Identifier(tok.position, tok.value)
-            while True:
-                cur = self.current()
-                if cur is None:
-                    break
-                if cur.type != TokenType.OPERATOR:
-                    break
-                if cur.value != ".":
-                    break
-                # consume '.'
+        cur = self.safe_current()
+        if cur.type == TokenType.OPERATOR:
+            if cur.value in ("+", "-", "!", "~"):
+                op_tok = cur
                 self.next()
-                field_tok = self.current()
-                if field_tok is None:
-                    raise ParseError(f"Expected field after '.' at {tok.position}")
-                if field_tok.type not in (TokenType.IDENT, TokenType.KEYWORD):
-                    raise ParseError(f"Expected field after '.' at {field_tok.position}")
-                if field_tok.type == TokenType.KEYWORD and field_tok.value != "value":
-                    raise ParseError(f"Expected field after '.' at {field_tok.position}")
-                self.next()
-                node = FieldAccess(node.pos, node, field_tok.value)
-            return node
+                operand = self.parse_unary()
+                return UnaryOp(op_tok.position, op_tok.value, operand)
+            self._raise(ParseError("Unhandled OPERATOR"))
 
-        if tok.type in (TokenType.INTEGER, TokenType.SIZE, TokenType.FLOAT):
+        if cur.type == TokenType.IDENT:
+            name = Identifier(cur.position, cur.value)
+            peek = self.peek()
+            if peek and peek.type == TokenType.PAREN_LEFT:
+                self.next() # cur = "("
+                self.safe_next() # cur = "..."
+                args = self.parse_arrays(TokenType.PAREN_RIGHT)
+                self.next() # cur = "..." or None
+                return FunctionCall(name.pos, name, args)
             self.next()
-            return NumberLiteral(tok.position, tok.value)
+            return name
+
+        if cur.type in (TokenType.INTEGER, TokenType.SIZE, TokenType.FLOAT):
+            x = NumberLiteral(cur.position, cur.value)
+            self.next()
+            if cur.type == TokenType.SIZE:
+                return Size(cur.position, x)
+            return x
         
-        if tok.type == TokenType.REGULARSIZE:
+        if cur.type == TokenType.REGULARSIZE:
             self.next()
-            return RegularSize(tok.position, tok.value)
+            return RegularSize(cur.position, cur.value)
 
-        if tok.type == TokenType.STRING:
+        if cur.type == TokenType.STRING:
             self.next()
-            return StringLiteral(tok.position, tok.value)
+            return StringLiteral(cur.position, cur.value)
 
-        if tok.type == TokenType.PAREN_LEFT:
+        if cur.type == TokenType.PAREN_LEFT:
             self.next()
             expr = self.parse_expression()
-            cur = self.current()
-            if cur is None or cur.type != TokenType.PAREN_RIGHT:
-                raise ParseError(f"Expected ')' after expression at {tok.position}")
-            self.next()
+            self.expect_current(TokenType.PAREN_RIGHT)
             return expr
 
-        raise ParseError(f"Unexpected token {tok.value} in expression at {tok.position}")
+        self._raise(ParseError(f"Unhandled token {cur.type}"))
 
     def get_precedence(self, op):
         prec_table = {
@@ -170,52 +194,20 @@ class Parser:
             return prec_table[op]
         return 0
 
-    # --- block parsing ---
     def parse_code(self):
-        cur = self.current()
-        if cur is None or cur.type != TokenType.BRACE_LEFT:
-            raise ParseError(f"Expected '{{' at start of block, got {cur}")
-        # consume '{'
-        self.index += 1
-        
-        codes = []
+        self.expect_current(TokenType.BRACE_LEFT)
+        code = ""
         while True:
-            cur = self.current()
-            if cur is None:
-                raise ParseError("Unterminated block (expected '}')")
+            cur = self.safe_current()
             if cur.type == TokenType.BRACE_RIGHT:
                 self.next()
                 break
-            text = self.parse_code_statement()
-            codes.append(text)
-            self.index += 1
-        return Code(cur.position, ''.join(codes))
-    def parse_block(self):
-        cur = self.current()
-        if cur is None or cur.type != TokenType.BRACE_LEFT:
-            raise ParseError(f"Expected '{{' at start of block, got {cur}")
-        # consume '{'
-        self.next()
-        statements = []
+            code += self.parse_code_block()
+        return Code(cur.position, code)
 
-        while True:
-            cur = self.current()
-            if cur is None:
-                raise ParseError("Unterminated block (expected '}')")
-            if cur.type == TokenType.BRACE_RIGHT:
-                break
-            stmt = self.parse_statement()
-            statements.append(stmt)
-
-        # consume '}'
-        self.next()
-        return Block(cur.position,statements)
-
-    # --- statement parsing ---
-    def parse_code_statement(self):
+    def parse_code_block(self):
         depth = 0
         output = ""
-        
         while True:
             tok = self._get_token(self.index, False)[0]
             if tok is None:
@@ -228,59 +220,52 @@ class Parser:
                 depth += 1
             output += tok.value
             self.index += 1
-        self.index -= 1
-        
         return output
-    def parse_statement(self):
-        tok = self.current()
-        if tok is None:
-            raise ParseError("Unexpected EOF in statement")
 
-        if tok.type == TokenType.KEYWORD:
-            if tok.value == "raise":
+    def parse_block(self):
+        self.expect_current(TokenType.BRACE_LEFT)
+
+        statements = []
+        while True:
+            cur = self.safe_current()
+            if cur.type == TokenType.BRACE_RIGHT:
+                self.next()
+                break
+            stmt = self.parse_statement()
+            statements.append(stmt)
+
+        return Block(cur.position,statements)
+
+    def parse_statement(self):
+        cur = self.safe_current()
+        if cur.type == TokenType.KEYWORD:
+            if cur.value == "raise":
                 # consume 'raise'
                 self.next()
-                str_tok = self.current()
-                if str_tok is None or str_tok.type != TokenType.STRING:
-                    raise ParseError(f"Expected string after raise at {tok.position}")
-                self.next()
-                semi = self.current()
-                if semi is None or semi.type != TokenType.SEMICOLON:
-                    raise ParseError(f"Expected ';' after raise at {str_tok.position}")
-                self.next()
+                str_tok = self.expect_current(TokenType.STRING)
+                self.expect_current(TokenType.SEMICOLON)
                 return RaiseStmt(str_tok.position, StringLiteral(str_tok.position, str_tok.value))
 
-            if tok.value == "if":
+            if cur.value == "if":
                 return self.parse_if()
 
-        if tok.type == TokenType.ATSIGN:
-            if tok.value in ("reserve", "noreserve", "endian"):
-                return self.parse_special_local()
-        if tok.type == TokenType.IDENT:
-            if self.safe_peek().type == TokenType.EQUALS:
+        if cur.type == TokenType.HASHTAG:
+            return self.parse_preprocessor()
+        if cur.type == TokenType.ATSIGN:
+            return self.parse_special_local()
+        if cur.type == TokenType.IDENT:
+            peek = self.peek()
+            if peek and peek.type == TokenType.EQUALS:
                 return self.parse_assignment()
             return self.parse_declaration()
-        if tok.type == TokenType.HASHTAG:
-            return self.parse_preprocessor()
 
-        raise ParseError(f"Unexpected token {tok.value} in statement at {tok.position}")
+        self._raise(ParseError(f"Unhandled token {cur.type}"))
 
     def parse_assignment(self):
-        name_tok = self.current()
-        if name_tok is None:
-            raise ParseError(f"Unexpected EOF when parsing variable assignment")
-        if name_tok.type != TokenType.IDENT:
-            raise ParseError(f"Expected variable identifier at {name_tok.position}")
-        self.expect(TokenType.EQUALS)
-        self.next()
-        self.next()
+        name_tok = self.expect_current(TokenType.IDENT)
+        self.expect_current(TokenType.EQUALS)
         value = self.parse_expression()
-        if (o:=self.current()) is None:
-            raise ParseError(f"Expected semicolon after variable assignment at {name_tok.position}")
-        if o.type != TokenType.SEMICOLON:
-            print(o)
-            raise ParseError(f"Expected semicolon after variable assignment at {o.position}")
-        self.next()
+        self.expect_current(TokenType.SEMICOLON)
         return VariableAssignment(
             name_tok.position,
             Identifier(name_tok.position, name_tok.value),
@@ -288,25 +273,10 @@ class Parser:
         )
 
     def parse_declaration(self):
-        name_tok = self.current()
-        if name_tok is None or name_tok.type != TokenType.IDENT:
-            raise ParseError(f"Expected identifier at start of declaration, got {name_tok}")
-        # consume name
-        self.next()
-    
-        cur = self.current()
-        if cur is None or cur.type != TokenType.COLON:
-            raise ParseError(f"Expected ':' after identifier in declaration at {name_tok.position}")
-        # consume ':'
-        self.next()
-    
-        type_tok = self.current()
-        if type_tok is None:
-            raise ParseError(f"Expected type after ':' at {name_tok.position}")
-        if type_tok.type not in (TokenType.IDENT,TokenType.REGULARSIZE, TokenType.SIZE):
-            raise ParseError(f"Expected type after ':' at {type_tok.position}")
-        # consume type
-        self.next()
+        name_tok = self.expect_current(TokenType.IDENT)
+        self.expect_current(TokenType.COLON)
+
+        type_tok = self.expect_current(TokenType.IDENT, TokenType.REGULARSIZE, TokenType.SIZE)
         if type_tok.type == TokenType.SIZE:
             type_expr = Size(type_tok.position, NumberLiteral(type_tok.position, type_tok.value))
         elif type_tok.type == TokenType.REGULARSIZE:
@@ -315,82 +285,56 @@ class Parser:
             type_expr = Identifier(type_tok.position, type_tok.value)
     
         # check for constructor-style default: Type(...)
-        default_expr = None
-        cur = self.current()
-        if cur is not None and cur.type == TokenType.PAREN_LEFT:
-            # type(...) style constructor
+        cur = self.safe_current()
+        if cur.type == TokenType.PAREN_LEFT:
+            if not isinstance(type_expr, Identifier):
+                self._raise(ParseError("Only identifiers are allowed"))
             self.next()  # consume '('
-            args = []
-            while True:
-                cur = self.current()
-                if cur is None:
-                    raise ParseError(f"Unterminated constructor call at {type_tok.position}")
-                if cur.type == TokenType.PAREN_RIGHT:
-                    break
-                arg_expr = self.parse_expression()
-                args.append(arg_expr)
-                cur = self.current()
-                if cur is not None and cur.type == TokenType.COMMA:
-                    self.next()  # consume ','
-                    continue
-                else:
-                    break
-            # consume ')'
-            cur = self.current()
-            if cur is None or cur.type != TokenType.PAREN_RIGHT:
-                raise ParseError(f"Expected ')' to close constructor at {type_tok.position}")
+            array = self.parse_arrays(TokenType.PAREN_RIGHT)
             self.next()
-            default_expr = CallExpression(type_expr.pos, args)
+            type_expr = FunctionCall(type_expr.pos, type_expr, array)
     
         array_expr = None
-        cur = self.current()
-        if cur is not None and cur.type == TokenType.BRACK_LEFT:
+        cur = self.safe_current()
+        if cur.type == TokenType.BRACK_LEFT:
             self.next()  # consume '['
             array_expr = self.parse_expression()
-            cur = self.current()
-            if cur is None or cur.type != TokenType.BRACK_RIGHT:
-                raise ParseError(f"Expected ']' after array expression at {type_tok.position}")
-            self.next()  # consume ']'
+            cur = self.expect_current(TokenType.BRACK_RIGHT)
     
-        cur = self.current()
-        if cur is not None and cur.type == TokenType.EQUALS:
+        default = None
+        cur = self.safe_current()
+        if cur.type == TokenType.EQUALS:
             self.next()  # consume '='
-            default_expr = self.parse_expression()
+            default = self.parse_expression()
     
-        cur = self.current()
-        if cur is None or cur.type != TokenType.SEMICOLON:
-            raise ParseError(f"Expected ';' after declaration at {type_tok.position}")
-        self.next()  # consume ';'
+        self.expect_current(TokenType.SEMICOLON)
     
         return DeclareStatement(
             name_tok.position,
             Identifier(name_tok.position, name_tok.value),
             type_expr,
             array_expr,
-            default_expr
+            default
         )
 
     def parse_if(self):
-        if_tok = self.current()
-        if if_tok is None or if_tok.type != TokenType.KEYWORD or if_tok.value != "if":
-            raise ParseError(f"Expected 'if' at {if_tok}")
-        # consume 'if'
-        self.next()
+        if_tok = self.expect_current(TokenType.KEYWORD)
+        if if_tok.value != "if":
+            self._raise(ParseError(f"Expected 'if'"))
 
         cond = self.parse_expression()
 
-        if_block = self.parse_block()
-        if_block_pos = if_block.statements[0].pos if len(if_block.statements) > 0 else if_tok.position
-        if_block_node = ConditionalBlock(if_block_pos, if_block.statements, cond)
+        if_block = self.parse_block().statements
+        if_block = ConditionalBlock(if_tok.position, if_block, cond)
 
         elif_blocks = []
-        else_block_node = None
+        else_block = None
 
         while True:
             cur = self.current()
             if cur is None:
                 break
-            if cur.value != "elif":
+            if cur.type != TokenType.KEYWORD or cur.value != "elif":
                 break
             elif_tok = cur
             # consume 'elif'
@@ -398,82 +342,41 @@ class Parser:
 
             cond2 = self.parse_expression()
 
-            block = self.parse_block()
-            block_pos = block.statements[0].pos if len(block.statements) > 0 else elif_tok.position
-            elif_blocks.append(ConditionalBlock(block_pos, block.statements, cond2))
+            block = self.parse_block().statements
+            elif_blocks.append(ConditionalBlock(elif_tok.position, block, cond2))
 
         cur = self.current()
-        if cur is not None and cur.value == "else":
-            else_tok = cur
+        if cur is not None and cur.type == TokenType.KEYWORD and cur.value == "else":
             # consume 'else'
             self.next()
-            block = self.parse_block()
-            else_block_node = block
+            else_block = self.parse_block()
 
-        return IfThenElse(if_block_node.pos, if_block_node, elif_blocks, else_block_node)
+        return IfThenElse(if_tok.position, if_block, elif_blocks, else_block)
 
     # --- top-level parsing ---
     def parse_struct(self):
-        struct_type = self.current()
-        if struct_type is None or struct_type.type != TokenType.KEYWORD:
-            raise ParseError(f"Expected struct type at {self.current()}")
+        struct_type = self.expect_current(TokenType.KEYWORD)
         if struct_type.value not in ("struct", "code"):
-            raise ParseError(f"Expected struct type at {self.current()}")
-        name_tok = self.next()
+            self._raise(ParseError(f"Expected struct type"))
         if struct_type.value == "code":
             code = self.parse_code()
             return code
-        if name_tok is None or name_tok.type != TokenType.IDENT:
-            raise ParseError(f"Expected struct name identifier at {self.current()}")
-        # consume name
-        self.next()
+        name_tok = self.expect_current(TokenType.IDENT)
 
-        params = []
-        cur = self.current()
-        if cur is not None and cur.type == TokenType.PAREN_LEFT:
-            # consume '('
+        params: list[Identifier] = []
+        cur = self.safe_current()
+        if cur.type == TokenType.PAREN_LEFT:
             self.next()
-            while True:
-                cur = self.current()
-                if cur is None:
-                    raise ParseError("Unterminated parameter list in struct")
-                if cur.type == TokenType.PAREN_RIGHT:
-                    break
-                param_tok = cur
-                if param_tok.type != TokenType.IDENT:
-                    raise ParseError(f"Expected parameter identifier in struct at {param_tok.position}")
-                params.append(Identifier(param_tok.position, param_tok.value))
-                # consume param
-                self.next()
-                cur = self.current()
-                if cur is not None and cur.type == TokenType.COMMA:
-                    # consume comma
-                    self.next()
-                    continue
-                else:
-                    break
-            # expect ')'
-            cur = self.current()
-            if cur is None or cur.type != TokenType.PAREN_RIGHT:
-                raise ParseError(f"Expected ')' after struct params at {name_tok.position}")
-            # consume ')'
+            params = self.parse_arrays(TokenType.PAREN_RIGHT, valid_types=(Identifier,)) # type: ignore
             self.next()
 
         block = self.parse_block()
         return Struct(name_tok.position, name_tok.value, params, block)
-
+    
     def parse_preprocessor(self):
-        cur = self.current()
-        if cur is None or cur.type != TokenType.HASHTAG:
-            raise ParseError(f"Expected '#' preprocessor at {cur}")
+        cur = self.expect_current(TokenType.HASHTAG)
         line = cur.position[0]
-        # consume '#'
-        self.next()
-        name_tok = self.current()
-        if name_tok is None or name_tok.type not in (TokenType.SPECIAL, TokenType.PREPROCESSOR):
-            raise ParseError(f"Expected preprocessor keyword after '#' at {cur.position}")
-        # consume keyword
-        self.next()
+        name_tok = self.expect_current(TokenType.SPECIAL, TokenType.PREPROCESSOR)
         args = []
         while True:
             cur = self.current()
@@ -488,22 +391,21 @@ class Parser:
             self.next()
         if name_tok.type == TokenType.SPECIAL:
             return SpecialGlobal(name_tok.position, name_tok.value, args)
-        return Preprocessor(name_tok.value, args)
+        return Preprocessor(name_tok.position, name_tok.value, args)
 
     def parse_special_local(self):
-        cur = self.current()
-        if cur is None or cur.type != TokenType.ATSIGN:
-            raise ParseError(f"Expected '@' at {cur}")
-        # consume '@'
-        self.next()
-        name_tok = self.current()
-        if name_tok is None or name_tok.type != TokenType.KEYWORD:
-            raise ParseError(f"Expected keyword after '@' at {cur.position}")
-        # consume keyword
-        self.next()
+        cur = self.expect_current(TokenType.ATSIGN)
+        line = cur.position[0]
+        name_tok = self.expect_current(TokenType.SPECIAL)
         args = []
-        cur = self.current()
-        if cur is not None and cur.type == TokenType.KEYWORD:
+        while True:
+            cur = self.current()
+            if cur is None:
+                break
+            if cur.position[0] != line:
+                break
+            if cur.type != TokenType.KEYWORD:
+                break
             args.append(cur.value)
             self.next()
         return SpecialLocal(name_tok.position, name_tok.value, args)
@@ -523,5 +425,6 @@ class Parser:
             if cur.type == TokenType.KEYWORD:
                 items.append(self.parse_struct())
                 continue
-            raise ParseError(f"Unexpected top-level token {cur.value} at {cur.position}")
-        return Program(items)
+            print(self.index)
+            self._raise(ParseError(f"Unexpected top-level token {cur.value}"))
+        return Program(self.filename,items)

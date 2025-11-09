@@ -49,19 +49,22 @@ class Generator:
                 call_arguments.append(actual_size)
             elif isinstance(statement.type, ast_.RegularSize):
                 callable_ = f"type_{statement.type.value}"
-            elif isinstance(statement.type, ast_.Identifier):
-                parameters = self.functions[statement.type.name]
-                if isinstance(statement.default, ast_.CallExpression) and len(parameters) > 0:
-                    arguments = (self._gen_expression(argument, extras, certains) for argument in statement.default.args)
+            elif isinstance(statement.type, ast_.FunctionCall):
+                parameters = self.functions[statement.type.callable.name]
+                if len(parameters) > 0:
+                    arguments = (self._gen_expression(argument, extras, certains) for argument in statement.type.arguments)
                     this_block = "sub_ctx = {\n"
                     for parameter, argument in zip(parameters, arguments):
                         this_block += f"{self.indent_}'{parameter}':{argument},\n"
                     this_block += "}"
-                    callable_ = f"parse{statement.type.name}"
+                    callable_ = f"parse{statement.type.callable.name}"
                     call_arguments.append("sub_ctx")
                 else:
-                    callable_ = f"parse{statement.type.name}"
+                    callable_ = f"parse{statement.type.callable.name}"
                     call_arguments.append("{}")
+            elif isinstance(statement.type, ast_.Identifier):
+                callable_ = f"parse{statement.type.name}"
+                call_arguments.append("{}")
             if this_block:
                 result_ = this_block+"\n"+f"ctx['{statement.name.name}'], offset = "
             else:

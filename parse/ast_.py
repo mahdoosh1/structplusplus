@@ -19,10 +19,6 @@ class Identifier(Expression):
     name: str
 
 @dataclass
-class CallExpression(Expression):
-    args: list[Identifier]
-
-@dataclass
 class FunctionCall(Expression):
     callable: Identifier
     arguments: list[Expression]
@@ -72,7 +68,7 @@ class RaiseStmt(Statement):
 class DeclareStatement(Statement):
     # can be: ident ":" ident | size [ "[" ( ident | number | size ) "]" ] | [ "=" ( ident | number ) ]
     name: Identifier        # identifier when present (for ident:ident form or named field)
-    type: Union[Size, RegularSize, Identifier]   # type name when present (like uint32)
+    type: Union[Size, RegularSize, Identifier, FunctionCall]   # type name when present (like uint32)
     array_size: Optional[Expression]  # expression inside brackets or None
     default: Optional[Expression]
 
@@ -106,7 +102,7 @@ class IfThenElse(Statement):
 
 # --- preprocessor / global special ---
 @dataclass
-class Preprocessor:
+class Preprocessor(Statement):
     name: str
     args: list[str]
 
@@ -124,4 +120,5 @@ class Struct(Statement):
 
 @dataclass
 class Program:
+    filename: str
     items: list[Union[Struct, Preprocessor, SpecialGlobal, Code]]
