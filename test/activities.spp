@@ -1,0 +1,11 @@
+#endian little
+
+struct File(){
+    full = c"len(data)//40-1";
+    actions: Actions[full];
+}
+
+struct Actions(){
+    timestamp: uint64;
+    guid: 32B;
+}

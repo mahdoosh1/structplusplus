@@ -9,3 +9,6 @@ __pycache__
 !/test/example.spp
 !/test/example.py
 !/test/example.bmp
+!/test/activities.spp
+!/test/activities.py
+!/test/activities.bin
