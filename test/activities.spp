@@ -8,4 +8,5 @@ struct File(){
 struct Actions(){
     timestamp: uint64;
     guid: 32B;
+    guid = py("ctx['guid'].decode('utf-8')");
 }

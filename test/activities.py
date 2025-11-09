@@ -108,6 +108,7 @@ def parseActions(data: bytes, offset: int, extras: dict) -> tuple[dict, int]:
     ctx = {}
     ctx['timestamp'], offset = type_uint64(data, offset)
     ctx['guid'], offset = size(data, offset, 32)
+    ctx['guid'] = ctx['guid'].decode('utf-8')
     return ctx, offset
 
 
