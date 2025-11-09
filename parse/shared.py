@@ -33,7 +33,7 @@ def type_uint64(data, offset):
     else:
         type_ = c_uint64.__ctype_be__ # type: ignore
     obj = type_.from_buffer_copy(data, offset)
-    return obj, offset + 4
+    return obj, offset + 8
 
 def type_int8(data, offset):
     if ENDIAN == 'little':
@@ -65,7 +65,7 @@ def type_int64(data, offset):
     else:
         type_ = c_int64.__ctype_be__ # type: ignore
     obj = type_.from_buffer_copy(data, offset)
-    return obj, offset + 4
+    return obj, offset + 8
 
 def type_float(data, offset):
     if ENDIAN == 'little':
