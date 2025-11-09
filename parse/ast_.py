@@ -38,6 +38,7 @@ class RegularSize(Expression):
 @dataclass
 class StringLiteral(Expression):
     value: str
+    code: bool
 
 @dataclass
 class FieldAccess(Expression):

@@ -1,4 +1,4 @@
-from ctypes import c_uint8, c_uint16, c_uint32, c_int8, c_int16, c_int32, c_float, c_double
+from ctypes import c_uint8, c_uint16, c_uint32, c_uint64, c_int8, c_int16, c_int32, c_int64, c_float, c_double
 from ast import literal_eval
 
 ENDIAN = 'little'
@@ -27,6 +27,14 @@ def type_uint32(data, offset):
     obj = type_.from_buffer_copy(data, offset)
     return obj, offset + 4
 
+def type_uint64(data, offset):
+    if ENDIAN == 'little':
+        type_ = c_uint64.__ctype_le__ # type: ignore
+    else:
+        type_ = c_uint64.__ctype_be__ # type: ignore
+    obj = type_.from_buffer_copy(data, offset)
+    return obj, offset + 4
+
 def type_int8(data, offset):
     if ENDIAN == 'little':
         type_ = c_int8.__ctype_le__ # type: ignore
@@ -45,9 +53,17 @@ def type_int16(data, offset):
 
 def type_int32(data, offset):
     if ENDIAN == 'little':
-        type_ = c_uint32.__ctype_le__ # type: ignore
+        type_ = c_int32.__ctype_le__ # type: ignore
     else:
-        type_ = c_uint32.__ctype_be__ # type: ignore
+        type_ = c_int32.__ctype_be__ # type: ignore
+    obj = type_.from_buffer_copy(data, offset)
+    return obj, offset + 4
+
+def type_int64(data, offset):
+    if ENDIAN == 'little':
+        type_ = c_int64.__ctype_le__ # type: ignore
+    else:
+        type_ = c_int64.__ctype_be__ # type: ignore
     obj = type_.from_buffer_copy(data, offset)
     return obj, offset + 4
 

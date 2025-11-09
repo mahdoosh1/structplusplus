@@ -88,6 +88,8 @@ class Generator:
         elif isinstance(statement, ast_.RaiseStmt):
             return f"raise ValueError({self._gen_expression(statement.message)})"
         elif isinstance(statement, ast_.VariableAssignment):
+            if certain:
+                certains.append(statement.name.name)
             return f"ctx['{statement.name.name}'] = {self._gen_expression(statement.value, extras, certains)}"
         print("E: ",statement)
         return ""
@@ -138,7 +140,7 @@ class Generator:
                 return expression.raw, False # type: ignore
             return expression.raw
         if isinstance(expression, ast_.FunctionCall):
-            if expression.callable == "py":
+            if expression.callable.name == "py":
                 if len(expression.arguments) == 1:
                     string = self._gen_expression(expression.arguments[0])
                     if self.cte:
@@ -152,12 +154,18 @@ class Generator:
                         return result, False # type: ignore
                     return result
             args = ", ".join(map(self._gen_expression, expression.arguments))
-            result = f"{expression.callable}({args})"
+            result = f"{expression.callable.name}({args})"
             if return_certain:
                 return result, False # type: ignore
             return result
         if isinstance(expression, ast_.StringLiteral):
-            result = expression.value
+            if expression.code:
+                if self.cte:
+                    result = str(literal_eval(expression.value))
+                else:
+                    result = f"literal_eval({expression.value})"
+            else:
+                result = expression.value
             if return_certain:
                 return result, False # type: ignore
             return result

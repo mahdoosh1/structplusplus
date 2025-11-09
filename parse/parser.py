@@ -43,8 +43,7 @@ class Parser:
         self.index += 1
         r, i = self._get_token(self.index)
         
-        if r: self.index = i
-        else: self.index = i-1
+        self.index = i
         
         return r
 
@@ -153,6 +152,11 @@ class Parser:
                 args = self.parse_arrays(TokenType.PAREN_RIGHT)
                 self.next() # cur = "..." or None
                 return FunctionCall(name.pos, name, args)
+            if peek and peek.type == TokenType.STRING:
+                if cur.value == "c":
+                    self.next()
+                    self.next()
+                    return StringLiteral(peek.position, peek.value, True)
             self.next()
             return name
 
@@ -169,7 +173,7 @@ class Parser:
 
         if cur.type == TokenType.STRING:
             self.next()
-            return StringLiteral(cur.position, cur.value)
+            return StringLiteral(cur.position, cur.value, False)
 
         if cur.type == TokenType.PAREN_LEFT:
             self.next()
@@ -244,7 +248,7 @@ class Parser:
                 self.next()
                 str_tok = self.expect_current(TokenType.STRING)
                 self.expect_current(TokenType.SEMICOLON)
-                return RaiseStmt(str_tok.position, StringLiteral(str_tok.position, str_tok.value))
+                return RaiseStmt(str_tok.position, StringLiteral(str_tok.position, str_tok.value, False))
 
             if cur.value == "if":
                 return self.parse_if()
